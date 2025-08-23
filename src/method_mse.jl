@@ -122,6 +122,53 @@ function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32
     idealized_values
 end
 
+"""
+    actual_idealize_data(
+        data::Dict{String, Vector{Float32}},
+        what_first_dict::Dict{String, Int64},
+        data_file_name::AbstractString,
+        Δt::Float32
+    ) :: Vector{UInt8}
+
+Reconstruct a binary idealized signal from dwell-time information by alternating
+between states `0` and `1` with durations matching the provided dwell times.
+
+# Arguments
+- `data::Dict{String, Vector{Float32}}`: Dictionary containing at least:
+    - `"dwell times"`: a vector of dwell time durations for consecutive states.
+    - `"x"`: the original data trace (used to match output length).
+- `what_first_dict::Dict{String, Int64}`: Dictionary specifying the starting
+   state for each file, mapped by file name.
+- `data_file_name::AbstractString`: Name of the dataset; used to select
+   the initial state from `what_first_dict`.
+- `Δt::Float32`: Sampling interval of the signal; used to convert dwell
+   durations into sample counts.
+
+# Returns
+- `Vector{UInt8}`: A binary idealized trace of the same length as `data["x"]`,
+   representing predicted open/closed states (`0`/`1`).
+
+# Method
+1. Retrieve the starting state (`what_first`) from `what_first_dict` for the
+   current file.
+2. Initialize `idealized_values` with that state.
+3. For each dwell time in `data["dwell times"]`:
+   - Convert dwell duration into a number of samples: `how_many = round(Int, dt / Δt)`.
+   - Append that many samples of the current state.
+   - Switch to the opposite state (`0 → 1` or `1 → 0`).
+   - Ensure at least one sample is generated for very small dwell times.
+4. Adjust the length of the result:
+   - If longer than `data["x"]`, truncate.
+   - If shorter, pad with the next state to match the signal length.
+5. Return the finalized binary idealized trace.
+
+# Notes
+- The function enforces that the returned vector always matches
+  the length of the original recorded trace (`data["x"]`).
+- Alternating states assumes a two-state system
+  (`0` and `1`), which is standard in patch-clamp idealization.
+- Handles dwell durations shorter than `Δt` by ensuring at least one sample.
+"""
 function actual_idealize_data(data::Dict{String, Vector{Float32}}, what_first_dict::Dict{String, Int64}, data_file_name::AbstractString, Δt::Float32) :: Vector{UInt8}
 	what_first = what_first_dict[data_file_name]
 	idealized_value = what_first
@@ -140,6 +187,42 @@ function actual_idealize_data(data::Dict{String, Vector{Float32}}, what_first_di
 	idealized_values
 end	
 
+"""
+    accuracy_of_idealization(
+        actual_idealization::Vector{UInt8},
+        approx_idealization::Vector{UInt8}
+    ) :: Float32
+
+Compute the accuracy of an approximate idealization compared to the ground-truth
+(or reference) idealization.
+
+# Arguments
+- `actual_idealization::Vector{UInt8}`: The reference (true) idealized signal,
+   represented as a binary vector (`0` and `1` states).
+- `approx_idealization::Vector{UInt8}`: The test or approximated idealized trace
+   to be evaluated.
+
+# Returns
+- `Float32`: The accuracy, computed as the proportion of matching states
+  between the two sequences, in the range `[0.0, 1.0]`.
+
+# Method
+1. If the first state of `approx_idealization` does not match the first state of
+   `actual_idealization`, then `approx_idealization` is inverted
+   (`0 ↔ 1`) to ensure label consistency.
+2. Accuracy is calculated as:
+    ```
+    sum(actual_idealization .== approx_idealization) / length(approx_idealization)
+    ```
+    i.e., the fraction of samples where both sequences agree.
+
+# Notes
+    - This function assumes both inputs are of equal length.
+    - If a systematic state-label swap occurred (e.g., model outputs `1` for "closed"
+    but reference uses `0`), the inversion step ensures a fair comparison.
+    - Accuracy is a simple per-sample metric and may not capture temporal
+    misalignments (e.g., small shifts in breakpoints).
+"""
 function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_idealization::Vector{UInt8}) :: Float32
     # Calculate the accuracy as the proportion of matching states
     if actual_idealization[1] != approx_idealization[1]
@@ -162,7 +245,7 @@ such as [`MeanDeviationMethod`](@ref), which stores:
     - Method parameters (e.g. δ, λ values).
 - `Δt::Float32`  
 Sampling interval (seconds) of the recordings.
-- `data_size::UInt32=50` (optional, default=`50`)
+- `data_size::UInt32`
 Number of data points to include in each dataset for MSE calculation.
 - `verbose::Bool=false`
 If `true`, prints detailed processing information for each dataset.
@@ -197,7 +280,7 @@ the `IdealizationMethod` instance and calling its stored method function.
 ```
 m = MeanDeviationMethod(deviation_from_mean_method, 0.05, 0.5)
 Δt = 1e-4
-avg_mse = mean_error(m, Δt)
+avg_mse = mean_error(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """

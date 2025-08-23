@@ -2,7 +2,7 @@ using StatsBase
 using Distributions
 
 """
-create_idealizations(data_folder::String) -> Dict{String, Vector{Int8}}
+create_idealizations(data_folder::String, Δt::Float32) -> Dict{String, Vector{Int8}}
 
 Generate idealized binary traces from raw experimental data and dwell times.
 
@@ -16,6 +16,7 @@ Must follow the folder structure expected by [`read_all_file_paths`](@ref), with
 - `sampling/<voltage>/`
 - `dwell_times/<voltage>/`
 and an additional file at the top level used to determine the starting state for each trace.
+- `Δt::Float32` (optional, default=1e-4): Time step in seconds used to convert dwell times to point counts.
 
 # Returns
 - `Dict{String, Vector{Int8}}`:  
@@ -50,14 +51,11 @@ println(idealized["trace01.dat"][1:20]) # First 20 idealized points of a trace
 otherwise, zeros or ones are appended to match the length.
 - Switching between `0` and `1` starts from the value given in the `what_first_path` file
 for the specific trace.
-
 """
-function create_idealizations(data_folder::String) :: Dict{String, Vector{Int8}}
+function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :: Dict{String, Vector{Int8}}
 
     what_first_path, data_paths, dwell_times_paths = read_all_file_paths(data_folder)
-    N = length(data_paths)
-    Δt = 1e-4
-
+    N = length(data_paths)    
 
     what_first_files = open(what_first_path) do f; parse.(Int8, strip.(readlines(f))); end
 
@@ -71,8 +69,6 @@ function create_idealizations(data_folder::String) :: Dict{String, Vector{Int8}}
     # idealize data
     what_first = what_first_files[i]
     idealized_value = what_first
-    # println(data_paths[i])
-    # println(idealized_value)
     idealized_values = Vector{Int8}([])
     for dt in data["dwell times"]
         how_many = round(Int, dt/Δt)
@@ -90,13 +86,13 @@ function create_idealizations(data_folder::String) :: Dict{String, Vector{Int8}}
 end
 
 """
-histogram_calculator(data::Vector{Float32}, bins::Int=100) -> Histogram
+histogram_calculator(data::Vector{Float32}, bins::UInt16=100) -> Histogram
 
 Compute a histogram of the given data vector with a specified number of bins.
 
 # Arguments
 - `data::Vector{Float32}`: A vector of floating-point numbers representing the data to histogram.
-- `bins::Int` (optional, default=100): Number of bins to divide the data range into.
+- `bins::UInt16` (optional, default=100): Number of bins to divide the data range into.
 
 # Returns
 - `Histogram`: A `Histogram` object (from `StatsBase.jl`) representing the frequency distribution
@@ -113,7 +109,7 @@ of the data across the specified bins.
 using StatsBase
 
 data = randn(1000) # 1000 samples from a normal distribution
-hist = histogram_calculator(data, 50)
+hist = histogram_calculator(data, UInt16(50))
 println(hist.weights) # Counts per bin
 println(hist.edges) # Bin edges
 ```
@@ -123,10 +119,9 @@ println(hist.edges) # Bin edges
 - The bins are equally spaced between the minimum and maximum data values.
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
-function histogram_calculator(data::Vector{Float32}, bins=100) :: Histogram
+function histogram_calculator(data::Vector{Float32}, bins::UInt16=UInt16(100)) :: Histogram
     min_data = minimum(data)
     max_data = maximum(data)
-    step_of_histogram = (max_data - min_data) / bins
     edges = range(min_data, stop=max_data, length=bins+1)
     histogram_of_data = fit(Histogram, data, edges)
     histogram_of_data
@@ -238,15 +233,15 @@ function analyze_histogram_peaks(prob_hist::Histogram) :: HistPeakAnalysis
 end
 
 """
-    get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ) -> ThresholdWidth
+    get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) -> ThresholdWidth
 
 Compute the threshold band used for state discrimination in idealization, based on histogram analysis and a weighting parameter.
 
 # Arguments
 - `hist_analysis::HistPeakAnalysis`  
 Result of peak analysis on a histogram, containing peak and minimum bin indices and values.
-- `ϵ`  
-Weighting parameter (typically Float32) that adjusts the positions of threshold bounds between minimum and peak values.
+- `ϵ::Float32`  
+Weighting parameter that adjusts the positions of threshold bounds between minimum and peak values.
 
 # Returns
 - `ThresholdWidth`  

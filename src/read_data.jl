@@ -112,7 +112,7 @@ function read_all_file_paths(data_folder::String) :: Tuple{String, Vector{String
 end
 
 """
-    get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size=-1) 
+    get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size::UInt32=0) 
         -> Dict{String, Vector{Float32}}
 
 Extract a segment of the `x` data vector and the corresponding `dwell times` segment 
@@ -129,12 +129,12 @@ Number of samples to include in the result.
 
 # Returns
 `Dict{String, Vector{Float32}}`:
-- `"x"` → The truncated `x` vector containing the first `data_size` samples (or all samples if `data_size=-1`).
+- `"x"` → The truncated `x` vector containing the first `data_size` samples (or all samples if `data_size==0`).
 - `"dwell times"` → A truncated version of `y` containing only those dwell time segments whose cumulative sum
 does not exceed `max_time = data_size * Δt`.
 
 # Method
-1. Determine the number of samples to include (`data_size`), using the full length of `x` if `data_size==-1`.
+1. Determine the number of samples to include (`data_size`), using the full length of `x` if `data_size==0`.
 2. Compute the `max_time` in seconds corresponding to the selected number of points.
 3. Include only those dwell time segments from `y` whose cumulative sum is less than or equal to `max_time`.
 4. Return both the truncated `x` and the matching truncated `y` in a dictionary.
@@ -207,7 +207,7 @@ function normalize_data(data::Dict{String, Vector{Float32}}) :: Vector{Float32}
 end
 
 """
-    combine_time_with_data(data::Vector{Float32}, Δt::Float32, batch_size=1) -> Vector{Tuple{Float32, Float32}}
+    combine_time_with_data(data::Vector{Float32}, Δt::Float32, batch_size::UInt8=1) -> Vector{Tuple{Float32, Float32}}
 
 Create a time-stamped version of raw data, pairing each value with its time in the sampled sequence.
 

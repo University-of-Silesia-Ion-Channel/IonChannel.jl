@@ -6,7 +6,7 @@ using HypothesisTests
 """
     method_function(::MikaMethod) -> Function
 
-Return the algorithm function associated with a `MeanDeviationMethod`.
+Return the algorithm function associated with a `MikaMethod`.
 
 This allows code like `calculate_method(data, m, Δt)` to work for any
 `IdealizationMethod` subtype without changing the executor logic.
@@ -235,6 +235,44 @@ println("Mean squared error: ", mse)
 """
 fit_mse(noise::Histogram, fit::Vector{Float32}) :: Float32 = sum((noise.weights .- fit[1:end-1]) .^ 2) / length(noise.weights)
 
+
+"""
+    noise_test(noise::Noise) :: Float32
+
+Evaluate the normality of noise samples by batching the data and averaging
+Shapiro-Wilk test p-values.
+
+This function splits the noise sequence into fixed-size batches, runs a
+`ShapiroWilkTest` on each batch, and returns the mean p-value as a summary
+normality score.
+
+# Arguments
+- `noise::Noise`: A noise container with fields:
+    - `ξ::Vector{Float32}`: The raw noise samples.
+    - `μ::Float32`: Mean of the noise (metadata; not used in this function).
+    - `σ::Float32`: Standard deviation of the noise (metadata; not used here).
+
+# Returns
+- `Float32`: The average p-value from Shapiro-Wilk tests across all complete
+  batches. Higher values suggest better agreement with normality.
+
+# Details
+- Uses a fixed `batch_size = 50`.
+- Only complete batches are tested:
+  `num_batches = div(length(noise_data(noise)), batch_size)`.
+  Any remainder samples are ignored.
+- For each batch, computes `ShapiroWilkTest(batch)` and stores `pvalue(test)`.
+- Returns `mean(pvals)`.
+
+# Notes
+- Requires `HypothesisTests` (for `ShapiroWilkTest`) and `Statistics` (for `mean`).
+- If the total number of samples is less than `batch_size`, the function returns
+  `NaN` (since there are no batches/p-values to average). Consider guarding
+  against this in calling code.
+- The function assumes the presence of `noise_data(noise)`, which should return
+  the vector of samples to test (e.g., `noise.ξ`). If not defined, replace
+  `noise_data(noise)` with `noise.ξ`.
+"""
 function noise_test(noise::Noise) :: Float32
 	# data_1 = rand(Normal(0, 1), 50000)
 	batch_size = 50

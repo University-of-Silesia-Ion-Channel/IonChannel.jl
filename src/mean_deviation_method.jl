@@ -1,5 +1,3 @@
-
-
 """
     method_function(::MeanDeviationMethod) -> Function
 

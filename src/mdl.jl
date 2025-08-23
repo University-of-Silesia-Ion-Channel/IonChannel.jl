@@ -1,5 +1,31 @@
 using StatsBase
 
+"""
+    _mdl(segment::Vector{Float32}, BP::Vector{UInt32}) :: Float32
+
+Compute the Minimum Description Length (MDL) criterion for a piecewise-constant segmentation.
+
+Given a signal `segment` and a set of candidate breakpoint indices `BP`, this function
+evaluates the MDL cost consisting of a model complexity term and a data-fit term
+(residual sum of squares within segments). Lower values indicate better segmentations.
+
+The segmentation is induced by the sorted, unique set `{1} ∪ BP ∪ {N}`, where `N = length(segment)`.
+
+Arguments:
+- segment::Vector{Float32}: The data segment to be evaluated.
+- BP::Vector{UInt32}: Candidate breakpoint indices (1-based, strictly within 1..N).
+
+Returns:
+- Float32: The MDL value; lower is better. Returns `Inf` if the residual sum of squares (RSS) is non-positive.
+
+Details:
+- For each segment between consecutive breakpoints, the mean is estimated and RSS accumulated.
+- Complexity term includes `p*log(N)` with `p = number_of_segments - 1`, and a local length penalty `0.5*Σ log(Nseg)`.
+- Fit term is `(N/2)*log(RSS/N)`.
+
+Notes:
+- Empty subsegments are skipped when accumulating RSS and complexity.
+"""
 function _mdl(segment::Vector{Float32}, BP::Vector{UInt32})::Float32
     N = length(segment)
     BPi = Vector{UInt32}(unique(vcat([1], BP, [N])))
@@ -24,6 +50,24 @@ function _mdl(segment::Vector{Float32}, BP::Vector{UInt32})::Float32
     p*log(N) + 0.5*CL + (N/2)*log(RSS/N)
 end
 
+"""
+    _test_breakpoint(segment::Vector{Float32}, candidate::Vector{UInt32}) :: Bool
+
+Test whether adding the proposed breakpoints reduces the MDL criterion.
+
+Computes MDL with and without the candidate breakpoints and returns true if the
+candidate segmentation yields a strictly lower MDL score.
+
+Arguments:
+- segment::Vector{Float32}: Data segment to test.
+- candidate::Vector{UInt32}: Proposed breakpoint indices.
+
+Returns:
+- Bool: `true` if `MDL(with candidate) < MDL(without)`, otherwise `false`.
+
+Notes:
+- Returns `false` when `candidate` is empty.
+"""
 function _test_breakpoint(segment::Vector{Float32}, candidate::Vector{UInt32}) :: Bool
     if length(candidate) == 0
         return false
@@ -33,6 +77,26 @@ function _test_breakpoint(segment::Vector{Float32}, candidate::Vector{UInt32}) :
     return mdl_no > mdl_yes
 end
 
+"""
+    detect_breaks_mdl(
+        segment::Vector{Float32},
+        method::AbstractString,
+        min_seg::UInt16=UInt16(300)
+    ) :: Vector{UInt32}
+
+Detect candidate breakpoint(s) using MDL-backed single or double-break search.
+
+Depending on `method`, the function delegates to a single- or double-break detector
+and then validates the proposed breakpoints with the MDL test.
+
+Arguments:
+- segment::Vector{Float32}: Data to search for breakpoints.
+- method::AbstractString: Either `"full"` (single-break) or `"full_two_break"` (double-break).
+- min_seg::UInt16: Minimum allowed segment length (in samples).
+
+Returns:
+- Vector{UInt32}: Validated breakpoint indices. Empty if none pass the MDL test or method is unknown.
+"""
 function detect_breaks_mdl(segment::Vector{Float32}, method::AbstractString, min_seg::UInt16=UInt16(300))
     if method == "full"
         candidate = detect_single_breakpoint(segment, min_seg)
@@ -50,6 +114,27 @@ function detect_breaks_mdl(segment::Vector{Float32}, method::AbstractString, min
     ret
 end
 
+"""
+    detect_single_breakpoint(
+        data::Vector{Float32},
+        min_seg::UInt16=UInt16(300)
+    ) :: Vector{UInt32}
+
+Find a single change point that minimizes within-segment squared error, subject to a minimum segment length.
+
+Performs a linear scan, maintaining incremental means and within-segment sums of squares to
+identify the index that best splits the data into two segments with minimal total squared error.
+
+Arguments:
+- data::Vector{Float32}: Input sequence.
+- min_seg::UInt16: Minimum length for each side of the breakpoint.
+
+Returns:
+- Vector{UInt32}: A vector with one breakpoint index, or empty if no valid split is found.
+
+Notes:
+- If `length(data) < 2*min_seg`, no split is attempted and the result is empty.
+"""
 function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300))::Vector{UInt32}
     n = length(data)
     if n < 2 * min_seg
@@ -90,7 +175,28 @@ function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
     out
 end
 
-function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300))
+"""
+    detect_double_breakpoint(
+        data::Vector{Float32},
+        min_seg::UInt16=UInt16(300)
+    ) :: Vector{UInt32}
+
+Search for two change points that jointly minimize the sum of within-segment squared errors.
+
+Uses cumulative sums to evaluate candidate pairs `(i, j)` efficiently, enforcing a minimum segment
+length on all three resulting segments.
+
+Arguments:
+- data::Vector{Float32}: Input signal.
+- min_seg::UInt16: Minimum segment length for each of the three segments.
+
+Returns:
+- Vector{UInt32}: A 2-element vector `[i, j]` with the best breakpoints, or empty if none.
+
+Notes:
+- If `length(data) < 3*min_seg`, returns an empty vector without searching.
+"""
+function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300)) ::Vector{UInt32}
     n = length(data)
     if n < 3 * min_seg
         return Vector{Int32}([])
@@ -139,6 +245,34 @@ function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
     out
 end
 
+"""
+    stepstat_mdl(
+        data::Vector{Float32},
+        BP::Vector{UInt32},
+        threshold::Float32=0.8f0
+    ) :: Tuple{Vector{UInt32}, Vector{Float32}}
+
+Estimate step values per segment and filter breakpoints by jump magnitude.
+
+Given breakpoints `BP`, this function:
+- appends the end index to form closed segments,
+- estimates the mean (`stepvalue`) for each segment,
+- computes jumps between consecutive segment means,
+- filters breakpoints whose absolute jump exceeds `threshold`.
+
+Arguments:
+- data::Vector{Float32}: Input signal.
+- BP::Vector{UInt32}: Candidate breakpoints (1-based).
+- threshold::Float32: Minimum absolute difference between consecutive step means to retain a breakpoint.
+
+Returns:
+- (filtered::Vector{UInt32}, stepvalue::Vector{Float32}):
+  - `filtered`: Breakpoints surviving the jump threshold.
+  - `stepvalue`: Estimated mean level for each (original) segment.
+
+Notes:
+- Ensures each segment has at least one index; if an interval collapses, it uses the breakpoint index.
+"""
 function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32=Float32(0.8)) :: Tuple{Vector{UInt32}, Vector{Float32}}
     push!(BP, UInt32(length(data)))
     stepvalue = zeros(Float32, length(BP))
@@ -164,6 +298,47 @@ function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Floa
     filtered, stepvalue
 end
 
+"""
+    mdl_method(
+        data::Vector{Float32},
+        Δt::Float32,
+        c_method::MDLMethod
+    ) :: MDLMethodOutput
+
+Perform MDL-based idealization by iteratively detecting and validating breakpoints,
+filtering spurious changes by step size, and constructing the idealized state sequence.
+
+Pipeline:
+1. Iterative breakpoint search:
+   - Starting from the full range, repeatedly detect single or double breakpoints
+     (via `detect_breaks_mdl`) within the current segment, respecting `c_method.min_seg`.
+   - Accept and insert any proposed breakpoints that pass the MDL test.
+2. Sort and consolidate all local breakpoints.
+3. Filter by jump magnitude:
+   - Use `stepstat_mdl(data, breaks, c_method.threshold)` to remove small steps and
+     estimate segment means.
+4. Convert sample indices to time:
+   - `breakpoints = final_breaks .* Δt`.
+5. Determine initial state using a histogram-derived threshold:
+   - Estimate amplitude threshold via `histogram_calculator`, `calculate_probability_histogram`,
+     and `analyze_histogram_peaks`, and set initial state to 0 if `data[1] < threshold`, else 1.
+6. Build per-sample idealized sequence by alternating states across `final_breaks`.
+7. Compute dwell times as `[breakpoints[1]; diff(breakpoints)]`.
+
+Arguments:
+- data::Vector{Float32}: Input trace to be idealized.
+- Δt::Float32: Sampling interval used to convert indices to time.
+- c_method::MDLMethod: Configuration with `min_seg`, `threshold`, and `number_of_histogram_bins`.
+
+Returns:
+- MDLMethodOutput: Contains `breakpoints` (Float32 times), `dwell_times_approx`, and `idealized_data` (UInt8 states).
+
+Notes:
+- Expects the following helpers in scope: `histogram_calculator`, `calculate_probability_histogram`,
+  and `analyze_histogram_peaks` returning an object with fields `edges` and `pmin_index`.
+- State alternation assumes a two-state model (0/1) switching at each retained breakpoint.
+- If `final_breaks` is empty, ensure calling code handles empty dwell times accordingly.
+"""
 function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
     
 	start::UInt32 = 1
@@ -228,4 +403,18 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
 	MDLMethodOutput(breakpoints, dwell_times, idealized_data)
 end
 
+"""
+    method_function(::MDLMethod)
+
+Dispatch helper that maps an `MDLMethod` configuration to its execution function.
+
+Returns a callable with signature `(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) -> MDLMethodOutput`,
+typically used in higher-level code to select the appropriate idealization routine based on method type.
+
+Example:
+```
+f = method_function(MDLMethod(300, 0.8f0, 100))
+out = f(data, Δt, c_method) # calls mdl_method
+```
+"""
 method_function(::MDLMethod) = mdl_method

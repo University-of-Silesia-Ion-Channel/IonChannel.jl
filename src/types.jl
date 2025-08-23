@@ -210,11 +210,13 @@ mutable struct Noise
     σ::Float32
 end
 
-
 noise_data(noise) = noise.ξ
 μ(noise) = noise.μ
 σ(noise) = noise.σ
-
+"""
+Computes and returns a `Noise` object representing the noise between raw data and idealized values.
+See more in the `Noise` struct documentation.
+"""
 function noise(data::Vector{Float32}, idealized_values::Vector{Float32}) :: Noise
     ξ = data .- idealized_values
     μ = mean(ξ)
@@ -305,7 +307,7 @@ Parameters and a method function for the Mika idealization method.
 - `ϵ::Float32`  
 A smoothing/noise parameter influencing threshold optimization.
 
-- `number_of_histogram_bins::UInt8`  
+- `number_of_histogram_bins::UInt16`  
 The number of bins used in histogram computations during idealization.
 
 # Description
@@ -320,7 +322,7 @@ result = calculate_method(data, m, Δt)
 """
 mutable struct MikaMethod <: IdealizationMethod
     ϵ::Float32
-    number_of_histogram_bins::UInt8
+    number_of_histogram_bins::UInt16
 end
 
 """
@@ -400,26 +402,152 @@ struct MeanDeviationMethodOutput <: MethodOutput
     idealized_data::Vector{UInt8}
 end
 
+
+"""
+    DeepChannelMethod <: IdealizationMethod
+
+Wrapper for a Python-based deep learning model used to idealize ion-channel
+time-series data into discrete states.
+
+This type stores a reference to a Python model (e.g., a Keras/PyTorch model
+accessed via `PyCall.PyObject`) that supports per-sample classification
+(prediction) over the input trace after appropriate preprocessing.
+
+# Fields
+- `model::PyObject`: The underlying Python model object. It is expected to
+  expose a prediction API compatible with the calling code (e.g., a `.predict`
+  method that accepts a 4D tensor shaped like `(N, 1, 1, 1)` and returns
+  class probabilities per sample).
+
+# Usage
+- Typically passed into `deep_channel_method(data, Δt, c_method)` to produce:
+  - per-sample predicted class labels,
+  - transition breakpoints,
+  - approximate dwell times.
+
+# Notes
+- Ensure PyCall is properly initialized and the Python environment includes all
+  dependencies required by the model (e.g., TensorFlow/Keras or PyTorch).
+- Input preprocessing (e.g., scaling with `UnitRangeTransform` and reshaping to
+  `(N,1,1,1)`) is handled by `deep_channel_method`.
+- The model is expected to output a probability distribution over states for
+  each sample; downstream code uses `argmax` to select the most likely class.
+"""
 struct DeepChannelMethod <: IdealizationMethod
     model::PyObject
 end
 
+
+"""
+    DeepChannelMethodOutput <: MethodOutput
+
+Container for the outputs of the deep learning–based idealization (DeepChannel method).
+
+Holds the approximate dwell times, transition times (breakpoints), and the full
+per-sample idealized state sequence.
+
+# Fields
+- `dwell_times_approx::Vector{Float32}`: Approximate durations spent in each
+  detected state segment, typically computed from successive transition times.
+- `breakpoints::Vector{Float32}`: Transition times (relative to the start of
+  the trace) at which the state changes.
+- `idealized_data::Vector{UInt8}`: Per-sample predicted states (e.g., `0`/`1`)
+  produced by the model after preprocessing and decoding.
+
+# Notes
+- Units of `dwell_times_approx` and `breakpoints` depend on the sampling
+  interval used upstream (e.g., `Δt` in seconds or milliseconds).
+- `idealized_data` provides the full-resolution state assignment, while
+  `dwell_times_approx` and `breakpoints` summarize state changes.
+- Designed to be returned by `deep_channel_method`.
+"""
 struct DeepChannelMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     breakpoints::Vector{Float32}
     idealized_data::Vector{UInt8}
 end
 
+"""
+    NaiveMethod <: IdealizationMethod
+
+Configuration for a simple histogram-threshold–based idealization method.
+
+This method estimates a decision threshold from the empirical distribution of
+signal amplitudes (via histogram analysis) and detects state transitions when
+the signal crosses that threshold.
+
+# Fields
+- `number_of_histogram_bins::UInt16`: Number of bins to use when building the
+  amplitude histogram. A larger value can capture finer structure but may be
+  noisier; typical ranges are 50–200 depending on data length and noise.
+
+# Usage
+- Pass an instance to `naive_method(data, Δt, method)` to produce:
+  - transition `breakpoints`,
+  - `dwell_times`,
+  - per-sample binary `idealized_data` (0/1).
+
+# Notes
+- The chosen bin count influences the stability of the estimated threshold.
+- Works best for bimodal amplitude distributions with reasonably separated modes.
+"""
 struct NaiveMethod <: IdealizationMethod
     number_of_histogram_bins::UInt16
 end
 
+"""
+    NaiveMethodOutput <: MethodOutput
+
+Container for outputs produced by the histogram-threshold–based idealization
+pipeline (`naive_method`).
+
+# Fields
+- `dwell_times_approx::Vector{Float32}`: Approximate durations spent in each
+  state segment, typically computed from differences between successive
+  breakpoints (first element usually equals the first breakpoint time).
+- `breakpoints::Vector{Float32}`: Transition times (relative to the start of
+  the trace) at which the signal crosses the estimated threshold and the state
+  flips.
+- `idealized_data::Vector{UInt8}`: Per-sample binary state assignments (`0` or `1`)
+  derived by tracking threshold crossings over the time series.
+
+# Notes
+- Units of `dwell_times_approx` and `breakpoints` are determined by the sampling
+  interval used upstream (e.g., `Δt`).
+- `idealized_data` provides the full-length state sequence, while
+  `dwell_times_approx` and `breakpoints` summarize state changes.
+- Designed to be returned by `naive_method`.
+"""
 struct NaiveMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     breakpoints::Vector{Float32}
     idealized_data::Vector{UInt8}
 end
 
+
+"""
+    MeanError
+
+Aggregate metrics for evaluating idealization or prediction performance across
+multiple segments, traces, or runs.
+
+# Fields
+- `mean_squared_error::Float32`: The overall mean of squared errors, typically
+  averaged across all samples and/or batches.
+- `mean_accuracy::Float32`: The overall accuracy aggregated across evaluations,
+  commonly expressed as a fraction in `[0.0, 1.0]`.
+- `mean_squared_errors::Vector{Float32}`: Per-segment or per-batch MSE values
+  used to compute `mean_squared_error`.
+- `accuracies::Vector{Float32}`: Per-segment or per-batch accuracy values used
+  to compute `mean_accuracy`.
+
+# Notes
+- This struct is a convenient container when running repeated evaluations (e.g.,
+  cross-validation folds, multiple traces, or bootstrapped subsets).
+- `mean_squared_error` is typically computed from `mean(mean_squared_errors)`,
+  and `mean_accuracy` from `mean(accuracies)`, but storing all components keeps
+  downstream analysis flexible (e.g., computing variance or confidence intervals).
+"""
 struct MeanError
     mean_squared_error::Float32
     mean_accuracy::Float32
@@ -427,12 +555,69 @@ struct MeanError
     accuracies::Vector{Float32}
 end
 
+"""
+    MDLMethod <: IdealizationMethod
+
+Configuration for an idealization approach based on the Minimum Description Length (MDL) principle.
+
+The MDL method selects a piecewise-constant segmentation of the signal that minimizes
+the total description length (model complexity + data fit). It balances the number of
+segments (penalizing over-segmentation) against how well segments explain the data.
+
+# Fields
+- `min_seg::UInt16`: Minimum allowed segment length (in samples). Prevents overly short
+  segments that are likely due to noise.
+- `threshold::Float32`: Amplitude or penalty threshold used within the MDL search/criteria.
+  Its interpretation depends on the specific implementation (e.g., penalty weight, merge/split
+  decision threshold).
+- `number_of_histogram_bins::UInt16`: Number of bins for any histogram-based auxiliary steps
+  (e.g., estimating noise statistics or amplitude modes) used by the MDL routine.
+
+# Usage
+- Construct and pass to an MDL-based idealization function, e.g.:
+  `mdl_method(data, Δt, method::MDLMethod) -> MDLMethodOutput` (function and output
+  type names may vary based on your implementation).
+
+# Notes
+- The MDL criterion typically trades off data fidelity and model complexity;
+  tuning `min_seg` and `threshold` impacts the balance between false positives
+  (spurious segments) and missed transitions.
+- Works well when the signal is piecewise constant with sparse change points and
+  approximately stationary noise.
+"""
 struct MDLMethod <: IdealizationMethod
     min_seg::UInt16
     threshold::Float32
     number_of_histogram_bins::UInt16
 end
 
+
+"""
+    MDLMethodOutput <: MethodOutput
+
+Container for the results of an MDL-based idealization.
+
+Holds the detected change-point times (breakpoints), the corresponding
+approximate dwell durations, and the full per-sample idealized state
+sequence.
+
+# Fields
+- `breakpoints::Vector{Float32}`: Times (relative to the start of the trace)
+  at which the signal is estimated to change state according to the MDL
+  segmentation.
+- `dwell_times_approx::Vector{Float32}`: Approximate durations spent in each
+  state segment, typically computed from successive `breakpoints` (the first
+  dwell time usually equals the first breakpoint time).
+- `idealized_data::Vector{UInt8}`: Per-sample state assignments (e.g., `0`/`1`)
+  produced by the MDL idealization over the entire trace length.
+
+# Notes
+- Units of `breakpoints` and `dwell_times_approx` depend on the sampling
+  interval used upstream (e.g., `Δt` in seconds or milliseconds).
+- `idealized_data` provides the full-resolution labeling, while
+  `breakpoints` and `dwell_times_approx` summarize the segmentation.
+- Designed to be returned by an MDL idealization routine (e.g., `mdl_method`).
+"""
 struct MDLMethodOutput <: MethodOutput
     breakpoints::Vector{Float32}
     dwell_times_approx::Vector{Float32}
