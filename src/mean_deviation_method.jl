@@ -11,17 +11,17 @@ This allows code like `calculate_method(data, m, Δt)` to work for any
 method_function(::MeanDeviationMethod) = deviation_from_mean_method
 
 """
-    deviation_from_mean_method(data::Vector{Float64}, Δt::Float64, c_method::MeanDeviationMethod) -> Vector{Float64}
+    deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) -> Vector{Float32}
 
 Estimate dwell times by detecting deviations from a running mean.
 
 # Arguments
-- `data::Vector{Float64}` - The (usually normalized) signal to analyse.
-- `Δt::Float64` - Sampling interval in seconds.
+- `data::Vector{Float32}` - The (usually normalized) signal to analyse.
+- `Δt::Float32` - Sampling interval in seconds.
 - `m::MeanDeviationMethod` - Parameters container; provides `m.δ` and `m.λ`.
 
 # Returns
-- `Vector{Float64}` - Estimated dwell times in seconds.
+- `Vector{Float32}` - Estimated dwell times in seconds.
 
 # Algorithm
 1. Start with the first value as the mean.
@@ -51,11 +51,11 @@ println(dwell_times_est) # e.g., [0.3, 0.3, 0.3]
 - `δ(c_method)` suppresses detection of very small fluctuations.
 - `λ(c_method)` controls the sensitivity: smaller values detect more frequent changes.
 """
-function deviation_from_mean_method(data::Vector{Float64}, Δt::Float64, c_method::MeanDeviationMethod) :: MeanDeviationMethodOutput
+function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) :: MeanDeviationMethodOutput
     temporary_dwell_time = 1
     different_state_than_mean = false
 
-    dwell_times_approx = Vector{Float64}([])
+    dwell_times_approx = Vector{Float32}([])
 
     sum_t = data[1]
     nr_means = 1

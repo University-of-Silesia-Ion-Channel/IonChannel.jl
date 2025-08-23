@@ -64,8 +64,8 @@ function create_idealizations(data_folder::String) :: Dict{String, Vector{Int8}}
     idealized_big_data = Dict{String, Vector{Int8}}([])
 
     for i in 1:N
-    x = open(data_paths[i]) do f; parse.(Float64, strip.(readlines(f))); end
-    y = open(dwell_times_paths[i]) do f; parse.(Float64, strip.(readlines(f))); end
+    x = open(data_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
+    y = open(dwell_times_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
 
     data = Dict("x" => x, "dwell times" => y)
     # idealize data
@@ -90,12 +90,12 @@ function create_idealizations(data_folder::String) :: Dict{String, Vector{Int8}}
 end
 
 """
-histogram_calculator(data::Vector{Float64}, bins::Int=100) -> Histogram
+histogram_calculator(data::Vector{Float32}, bins::Int=100) -> Histogram
 
 Compute a histogram of the given data vector with a specified number of bins.
 
 # Arguments
-- `data::Vector{Float64}`: A vector of floating-point numbers representing the data to histogram.
+- `data::Vector{Float32}`: A vector of floating-point numbers representing the data to histogram.
 - `bins::Int` (optional, default=100): Number of bins to divide the data range into.
 
 # Returns
@@ -123,7 +123,7 @@ println(hist.edges) # Bin edges
 - The bins are equally spaced between the minimum and maximum data values.
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
-function histogram_calculator(data::Vector{Float64}, bins=100) :: Histogram
+function histogram_calculator(data::Vector{Float32}, bins=100) :: Histogram
     min_data = minimum(data)
     max_data = maximum(data)
     step_of_histogram = (max_data - min_data) / bins
@@ -159,7 +159,7 @@ println(sum(prob_hist.weights)) # Should print 1.0 (or very close due to floatin
 """
 function calculate_probability_histogram(histogram::Histogram) :: Histogram
     # Probabilities 
-    float_weights = Float64.(histogram.weights)
+    float_weights = Float32.(histogram.weights)
     prob_weights = float_weights ./ (sum(float_weights))
 
     # probability histogram
@@ -246,7 +246,7 @@ Compute the threshold band used for state discrimination in idealization, based 
 - `hist_analysis::HistPeakAnalysis`  
 Result of peak analysis on a histogram, containing peak and minimum bin indices and values.
 - `ϵ`  
-Weighting parameter (typically Float64) that adjusts the positions of threshold bounds between minimum and peak values.
+Weighting parameter (typically Float32) that adjusts the positions of threshold bounds between minimum and peak values.
 
 # Returns
 - `ThresholdWidth`  
@@ -263,7 +263,7 @@ println("Lower bound: ", thr_width.x₁)
 println("Upper bound: ", thr_width.x₂)
 ```
 """
-function get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float64) :: ThresholdWidth
+function get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) :: ThresholdWidth
     max1_val, max2_val, min_val = hist_analysis.edges[hist_analysis.pmax1_index], hist_analysis.edges[hist_analysis.pmax2_index], hist_analysis.edges[hist_analysis.pmin_index]
     x₁ = (min_val * (1-ϵ) + max1_val * ϵ)
     x₂ = (max2_val * ϵ + min_val * (1-ϵ))
@@ -271,17 +271,17 @@ function get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float64) :: Th
 end;
 
 """
-    calculate_method(data::Vector{Float64}, c_method::IdealizationMethod, Δt::Float64)
+    calculate_method(data::Vector{Float32}, c_method::IdealizationMethod, Δt::Float32)
 
 Run the dwell-time estimation algorithm associated with the given method type.
 
 # Arguments
-- `data::Vector{Float64}` - The signal to analyse.
+- `data::Vector{Float32}` - The signal to analyse.
 - `m::IdealizationMethod` - Parameters for the chosen method; algorithm resolved by `method(m)`.
-- `Δt::Float64` - Sampling interval in seconds.
+- `Δt::Float32` - Sampling interval in seconds.
 
 # Returns
-- `Vector{Float64}` - Dwell times detected by the chosen method.
+- `Vector{Float32}` - Dwell times detected by the chosen method.
 
 # Example
 ```
@@ -289,6 +289,6 @@ m = MeanDeviationMethod(0.05, 0.5)
 dwell_times = calculate_dwell_times(signal, m, 1e-4)  
 ```
 """
-function calculate_method(data::Vector{Float64}, c_method::IdealizationMethod, Δt::Float64)
+function calculate_method(data::Vector{Float32}, c_method::IdealizationMethod, Δt::Float32)
     method_function(c_method)(data, Δt, c_method)
 end

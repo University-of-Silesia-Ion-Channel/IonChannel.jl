@@ -13,7 +13,7 @@ To implement a new method:
 1. Create a new struct subtype of `IdealizationMethod` that stores parameters.
 2. Write the algorithm function:
 
-    my_algorithm(data::Vector{Float64}, Δt::Float64, m::MyMethodType) -> Vector{Float64}
+    my_algorithm(data::Vector{Float32}, Δt::Float32, m::MyMethodType) -> Vector{Float32}
 
 3. Link it to the type with:
 
@@ -38,21 +38,21 @@ abstract type MethodOutput end
 Structure holding the results of peak and trough analysis on a histogram.
 
 # Fields
-- `edges::Vector{Float64}`  
+- `edges::Vector{Float32}`  
 The bin edges of the histogram.
-- `weights::Vector{Float64}`  
+- `weights::Vector{Float32}`  
 The counts or weights for each histogram bin.
-- `pmax1::Float64`  
+- `pmax1::Float32`  
 The height (weight) of the first (primary) maximum peak.
 - `pmax1_index::Int`  
 The bin index of the first maximum peak.
-- `pmax2::Float64`  
+- `pmax2::Float32`  
 The height (weight) of the second maximum peak.
 - `pmax2_index::Int`  
 The bin index of the second maximum peak.
 - `midpoint::Int`  
 The index representing the midpoint between the two main peaks.
-- `pmin::Float64`  
+- `pmin::Float32`  
 The height (weight) of the minimum (trough) between the two main peaks.
 - `pmin_index::Int`  
 The bin index of the minimum (trough) between the two main peaks.
@@ -70,14 +70,14 @@ println("Minimum between peaks at bin ", hist_analysis.pmin_index)
 ```
 """
 mutable struct HistPeakAnalysis
-    edges::Vector{Float64}
-    weights::Vector{Float64}
-    pmax1::Float64
+    edges::Vector{Float32}
+    weights::Vector{Float32}
+    pmax1::Float32
     pmax1_index::Int
-    pmax2::Float64
+    pmax2::Float32
     pmax2_index::Int
     midpoint::Int
-    pmin::Float64
+    pmin::Float32
     pmin_index::Int
 end
 
@@ -87,11 +87,11 @@ end
 Structure representing the threshold range for an idealization method.
 
 # Fields
-- `threshold_centre::Float64`  
+- `threshold_centre::Float32`  
 The central threshold value used for detecting state transitions.
-- `x₁::Float64`  
+- `x₁::Float32`  
 The lower bound of the threshold band.
-- `x₂::Float64`  
+- `x₂::Float32`  
 The upper bound of the threshold band.
 
 # Description
@@ -108,9 +108,9 @@ println("Upper bound: ", thr_width.x₂)
 ```
 """
 struct ThresholdWidth
-    threshold_centre::Float64
-    x₁::Float64
-    x₂::Float64
+    threshold_centre::Float32
+    x₁::Float32
+    x₂::Float32
 end
 
 """
@@ -119,8 +119,8 @@ end
 A simple 2D point with `x` and `y` coordinates.
 
 # Fields
-- `x::Float64` — The horizontal coordinate.
-- `y::Float64` — The vertical coordinate.
+- `x::Float32` — The horizontal coordinate.
+- `y::Float32` — The vertical coordinate.
 
 # Example
 ```
@@ -130,8 +130,8 @@ println(p.y) # 2.0
 ```
 """
 struct Point
-    x::Float64
-    y::Float64
+    x::Float32
+    y::Float32
 end
 
 """
@@ -140,8 +140,8 @@ end
 Represents a 2D line defined by the equation `y = a * x + b`.
 
 # Fields
-- `a::Float64` — The slope of the line.
-- `b::Float64` — The y-intercept of the line.
+- `a::Float32` — The slope of the line.
+- `b::Float32` — The y-intercept of the line.
 
 # Example
 ```
@@ -149,8 +149,8 @@ line = Line(2.0, 1.0) # y = 2x + 1
 ```
 """
 struct Line
-    a::Float64
-    b::Float64
+    a::Float32
+    b::Float32
 end
 
 """
@@ -159,11 +159,11 @@ end
 Mutable structure holding noise characteristics computed as differences between raw data and idealized values.
 
 # Fields
-- `ξ::Vector{Float64}`  
+- `ξ::Vector{Float32}`  
 The vector of residuals (noise), computed as `data - idealized_values`.
-- `μ::Float64`  
+- `μ::Float32`  
 The mean of the noise vector.
-- `σ::Float64`  
+- `σ::Float32`  
 The standard deviation of the noise vector.
 
 # Description
@@ -171,24 +171,24 @@ The standard deviation of the noise vector.
 
 ---
 
-`noise_data(noise::Noise) -> Vector{Float64}`  
+`noise_data(noise::Noise) -> Vector{Float32}`  
 Accessor function returning the raw noise vector `ξ`.
 
-`μ(noise::Noise) -> Float64`  
+`μ(noise::Noise) -> Float32`  
 Accessor function returning the mean of the noise.
 
-`σ(noise::Noise) -> Float64`  
+`σ(noise::Noise) -> Float32`  
 Accessor function returning the standard deviation of the noise.
 
 ---
 
-`noise(data::Vector{Float64}, idealized_values::Vector{Float64}) -> Noise`  
+`noise(data::Vector{Float32}, idealized_values::Vector{Float32}) -> Noise`  
 Computes and returns a `Noise` object representing the noise between raw data and idealized values.
 
 # Arguments
-- `data::Vector{Float64}`  
+- `data::Vector{Float32}`  
 The original data vector.
-- `idealized_values::Vector{Float64}`  
+- `idealized_values::Vector{Float32}`  
 The idealized or reconstructed data vector.
 
 # Returns
@@ -205,9 +205,9 @@ println("Noise std dev: ", σ(n))
 ```
 """
 mutable struct Noise
-    ξ::Vector{Float64}
-    μ::Float64
-    σ::Float64
+    ξ::Vector{Float32}
+    μ::Float32
+    σ::Float32
 end
 
 
@@ -215,7 +215,7 @@ noise_data(noise) = noise.ξ
 μ(noise) = noise.μ
 σ(noise) = noise.σ
 
-function noise(data::Vector{Float64}, idealized_values::Vector{Float64}) :: Noise
+function noise(data::Vector{Float32}, idealized_values::Vector{Float32}) :: Noise
     ξ = data .- idealized_values
     μ = mean(ξ)
     σ = std(ξ)
@@ -229,25 +229,25 @@ Structure holding the results of the Mika idealization method.
 
 # Fields
 
-- `breakpoints::Vector{Float64}`  
+- `breakpoints::Vector{Float32}`  
 Vector of cumulative breakpoint times (in seconds) indicating detected state changes.
 
-- `dwell_times_approx::Vector{Float64}`  
+- `dwell_times_approx::Vector{Float32}`  
 Estimated dwell times (in seconds) between detected transitions.
 
-- `idealized_data::Vector{Float64}`  
+- `idealized_data::Vector{Float32}`  
 The reconstructed idealized signal corresponding to the original data.
 
 - `noise::Noise`  
 A `Noise` struct capturing residuals between the original and idealized data and associated statistics.
 
-- `threshold::Float64`  
+- `threshold::Float32`  
 The optimized threshold value used for state discrimination.
 
-- `threshold_index::Int64`  
+- `threshold_index::Int`  
 The index within histogram bins corresponding to the selected threshold.
 
-- `noise_mse::Float64`  
+- `noise_mse::Float32`  
 The mean squared error between the noise and its fitted normal distribution.
 
 # Description
@@ -278,13 +278,13 @@ println("Number of breakpoints detected: ", length(breakpoints(result)))
 ```
 """
 struct MikaMethodOutput <: MethodOutput
-    breakpoints::Vector{Float64}
-    dwell_times_approx::Vector{Float64}
-    idealized_data::Vector{Float64}
+    breakpoints::Vector{Float32}
+    dwell_times_approx::Vector{Float32}
+    idealized_data::Vector{Float32}
     noise::Noise
-    threshold::Float64
-    threshold_index::Int64
-    noise_mse::Float64
+    threshold::Float32
+    threshold_index::Int
+    noise_mse::Float32
 end
 
 breakpoints(optimized_data::MikaMethodOutput) = optimized_data.breakpoints
@@ -302,7 +302,7 @@ Parameters and a method function for the Mika idealization method.
 
 # Fields
 
-- `ϵ::Float64`  
+- `ϵ::Float32`  
 A smoothing/noise parameter influencing threshold optimization.
 
 - `number_of_histogram_bins::UInt8`  
@@ -319,7 +319,7 @@ result = calculate_method(data, m, Δt)
 ```
 """
 mutable struct MikaMethod <: IdealizationMethod
-    ϵ::Float64
+    ϵ::Float32
     number_of_histogram_bins::UInt8
 end
 
@@ -329,8 +329,8 @@ end
 Parameters for the *deviation-from-running-mean* idealization method.
 
 # Fields
-- `δ::Float64` - Deviation offset subtracted from the absolute deviation before thresholding.
-- `λ::Float64` - Threshold value above which a deviation from the mean indicates a state change.
+- `δ::Float32` - Deviation offset subtracted from the absolute deviation before thresholding.
+- `λ::Float32` - Threshold value above which a deviation from the mean indicates a state change.
 
 # Description
 `MeanDeviationMethod` stores only these two numeric parameters.
@@ -348,19 +348,19 @@ println(λ(m)) # 0.5
 ```
 """
 mutable struct MeanDeviationMethod <: IdealizationMethod
-    δ::Float64
-    λ::Float64
+    δ::Float32
+    λ::Float32
 end
 
 """
-    δ(m::MeanDeviationMethod) -> Float64
+    δ(m::MeanDeviationMethod) -> Float32
 
 Return the `δ` (delta) parameter from the given `MeanDeviationMethod` instance.
 """
 δ(m::MeanDeviationMethod) = m.δ
 
 """
-    λ(m::MeanDeviationMethod) -> Float64
+    λ(m::MeanDeviationMethod) -> Float32
 
 Return the `λ` (lambda) parameter from the given `MeanDeviationMethod` instance.
 """
@@ -373,10 +373,10 @@ Type describing the output of the mean deviation idealization method.
 
 # Fields
 
-- `breakpoints::Vector{Float64}`
+- `breakpoints::Vector{Float32}`
     The cumulative breakpoints (timepoints, in seconds) at which state changes occur in the idealized trace, as computed by the method.
 
-- `dwell_times_approx::Vector{Float64}`
+- `dwell_times_approx::Vector{Float32}`
     The sequence of estimated dwell times between state transitions (in seconds) produced by the algorithm.
 
 # Description
@@ -395,9 +395,9 @@ result.dwell_times_approx # Vector of dwell times (seconds)
 ```  
 """
 struct MeanDeviationMethodOutput <: MethodOutput
-    breakpoints::Vector{Float64}
-    dwell_times_approx::Vector{Float64}
-    idealized_data::Vector{Int8}
+    breakpoints::Vector{Float32}
+    dwell_times_approx::Vector{Float32}
+    idealized_data::Vector{UInt8}
 end
 
 struct DeepChannelMethod <: IdealizationMethod
@@ -405,9 +405,9 @@ struct DeepChannelMethod <: IdealizationMethod
 end
 
 struct DeepChannelMethodOutput <: MethodOutput
-    dwell_times_approx::Vector{Float64}
-    breakpoints::Vector{Float64}
-    idealized_data::Vector{Int8}
+    dwell_times_approx::Vector{Float32}
+    breakpoints::Vector{Float32}
+    idealized_data::Vector{UInt8}
 end
 
 struct NaiveMethod <: IdealizationMethod
@@ -415,26 +415,26 @@ struct NaiveMethod <: IdealizationMethod
 end
 
 struct NaiveMethodOutput <: MethodOutput
-    dwell_times_approx::Vector{Float64}
-    breakpoints::Vector{Float64}
-    idealized_data::Vector{Int8}
+    dwell_times_approx::Vector{Float32}
+    breakpoints::Vector{Float32}
+    idealized_data::Vector{UInt8}
 end
 
 struct MeanError
-    mean_squared_error::Float64
-    mean_accuracy::Float64
-    mean_squared_errors::Vector{Float64}
-    accuracies::Vector{Float64}
+    mean_squared_error::Float32
+    mean_accuracy::Float32
+    mean_squared_errors::Vector{Float32}
+    accuracies::Vector{Float32}
 end
 
 struct MDLMethod <: IdealizationMethod
     min_seg::UInt16
-    threshold::Float64
+    threshold::Float32
     number_of_histogram_bins::UInt16
 end
 
 struct MDLMethodOutput <: MethodOutput
-    breakpoints::Vector{Float64}
-    dwell_times_approx::Vector{Float64}
-    idealized_data::Vector{Int8}
+    breakpoints::Vector{Float32}
+    dwell_times_approx::Vector{Float32}
+    idealized_data::Vector{UInt8}
 end

@@ -1,8 +1,8 @@
 using StatsBase
 
-function _mdl(segment, BP)
+function _mdl(segment::Vector{Float32}, BP::Vector{UInt32})::Float32
     N = length(segment)
-    BPi = unique(vcat([1], BP, [N]))
+    BPi = Vector{UInt32}(unique(vcat([1], BP, [N])))
     p = length(BPi) - 1
     RSS = 0.0
     CL = 0.0
@@ -24,36 +24,36 @@ function _mdl(segment, BP)
     p*log(N) + 0.5*CL + (N/2)*log(RSS/N)
 end
 
-function _test_breakpoint(segment, candidate)
+function _test_breakpoint(segment::Vector{Float32}, candidate::Vector{UInt32}) :: Bool
     if length(candidate) == 0
         return false
     end
-    mdl_no = _mdl(segment, Array{Int32}([]))
+    mdl_no = _mdl(segment, Vector{UInt32}([]))
     mdl_yes = _mdl(segment, candidate)
     return mdl_no > mdl_yes
 end
 
-function detect_breaks_mdl(segment::Vector{Float64}, method, min_seg=300)
+function detect_breaks_mdl(segment::Vector{Float32}, method::AbstractString, min_seg::UInt16=UInt16(300))
     if method == "full"
         candidate = detect_single_breakpoint(segment, min_seg)
     elseif method == "full_two_break"
         candidate = detect_double_breakpoint(segment, min_seg)
     else
-        return Vector{Int32}([])
+        return Vector{UInt32}([])
     end
     if _test_breakpoint(segment, candidate)
         ret = candidate
         # @info "MDL detected $(ret) breakpoint"
     else
-        ret = Vector{Int32}([])    
+        ret = Vector{UInt32}([])    
     end
     ret
 end
 
-function detect_single_breakpoint(data::Vector{Float64}, min_seg=300)
+function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300))::Vector{UInt32}
     n = length(data)
     if n < 2 * min_seg
-        return Array{Int32}([])
+        return Vector{UInt32}([])
     end
 
     mean1 = mean(data[1:min_seg - 1])
@@ -84,16 +84,16 @@ function detect_single_breakpoint(data::Vector{Float64}, min_seg=300)
         logL2 = newL2
     end
     if best_idx == 0
-        return Array{Int32}([])
+        return Vector{UInt32}([])
     end
-    out = Array{Int32}([best_idx])
+    out = Vector{UInt32}([best_idx])
     out
 end
 
-function detect_double_breakpoint(data::Vector{Float64}, min_seg=300)
+function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300))
     n = length(data)
     if n < 3 * min_seg
-        return Array{Int32}([])
+        return Vector{Int32}([])
     end
     cumx = cumsum(data)
     cumz = cumsum(data .^ 2)
@@ -131,29 +131,29 @@ function detect_double_breakpoint(data::Vector{Float64}, min_seg=300)
         end
     end
     if best_i == 0 || best_j == 0
-        return Array{Int32}([])
+        return Vector{UInt32}([])
     end
-    out = Array{Int32}(undef, 2)
+    out = Vector{UInt32}(undef, 2)
     out[1] = best_i
     out[2] = best_j
     out
 end
 
-function stepstat_mdl(data, BP, threshold=0.8)
-    push!(BP, length(data))
-    stepvalue = zeros(length(BP))
-    skip = 1
-    i0 = BP[1]
+function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32=Float32(0.8)) :: Tuple{Vector{UInt32}, Vector{Float32}}
+    push!(BP, UInt32(length(data)))
+    stepvalue = zeros(Float32, length(BP))
+    skip::UInt32 = 1
+    i0::UInt32 = BP[1]
     for k in eachindex(BP)
-        start = i0 + skip
-        stop = BP[k] - skip
+        start::UInt32 = i0 + skip
+        stop::UInt32 = BP[k] - skip
         if stop < start
             start = BP[k]
             stop = BP[k]
         end
         indices = start:stop+1
         if length(indices) == 0
-            indices = Array{Int32}([BP[k]])
+            indices = Vector{UInt32}([BP[k]])
         end
         stepvalue[k] = mean(data[indices])
         i0 = BP[k]
@@ -164,14 +164,14 @@ function stepstat_mdl(data, BP, threshold=0.8)
     filtered, stepvalue
 end
 
-function mdl_method(data::Vector{Float64}, Δt::Float64, c_method::MDLMethod) :: MDLMethodOutput
+function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
     
-	start = 1
-	end_ = length(data)
-    BP_local = [end_]
-    BPlast = end_
-    t0 = start
-    currentBP = BPlast
+	start::UInt32 = 1
+	end_::UInt32 = length(data)
+    BP_local = Vector{UInt32}([end_])
+    BPlast::UInt32 = end_
+    t0::UInt32 = start
+    currentBP::UInt32 = BPlast
 
     while t0 < end_
         while true
@@ -183,7 +183,7 @@ function mdl_method(data::Vector{Float64}, Δt::Float64, c_method::MDLMethod) ::
             end
 
             if !isempty(br)
-                loc = br .+ t0 .- 1  # Adjust 1-based indexing
+                loc = Vector{UInt32}(br .+ t0 .- 1)
                 BP_local = vcat(BP_local, loc)
                 currentBP = loc[1]
             else
@@ -227,6 +227,5 @@ function mdl_method(data::Vector{Float64}, Δt::Float64, c_method::MDLMethod) ::
 	dwell_times = append!([breakpoints[1]], diff(breakpoints))
 	MDLMethodOutput(breakpoints, dwell_times, idealized_data)
 end
-
 
 method_function(::MDLMethod) = mdl_method

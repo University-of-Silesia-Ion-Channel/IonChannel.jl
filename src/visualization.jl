@@ -2,20 +2,20 @@ using Plots
 using StatsBase
 
 """
-show_approx_on_plot(data::Dict{String, Vector{Float64}}, method_output::MethodOutput, T_left::Float64, T_right::Float64, Δt::Float64)
+show_approx_on_plot(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
 
 Plot raw data and overlay exact (ground truth) and approximated (idealized) breakpoints, with threshold line for Mika methods.
 
 # Arguments
-- `data::Dict{String, Vector{Float64}}`  
+- `data::Dict{String, Vector{Float32}}`  
 Dictionary containing `"x"` (raw data signal) and `"dwell times"` (vector of dwell segment durations).
 - `method_output::MethodOutput`  
 Output from an idealization algorithm, providing breakpoints and (for Mika) threshold information.
-- `T_left::Float64`
+- `T_left::Float32`
 Start time (seconds) for the plot interval.
-- `T_right::Float64`  
+- `T_right::Float32`  
 End time (seconds) for the plot interval.
-- `Δt::Float64`  
+- `Δt::Float32`  
 Sampling interval (seconds).
 
 # Description
@@ -32,7 +32,7 @@ Additional features—such as band limits or idealized data overlay—can be ena
 show_approx_on_plot(data, result, 0.5, 0.9, 1e-4)
 ```  
 """
-function show_approx_on_plot(data::Dict{String, Vector{Float64}}, method_output::MethodOutput, T_left::Float64, T_right::Float64, Δt::Float64)
+function show_approx_on_plot(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
     @assert T_left <= T_right "T_left must be less or equal to T_right"
     @assert haskey(data, "x") "Data must contain 'x' key with raw signal data"
     @assert haskey(data, "dwell times") "Data must contain 'dwell times' key with dwell segment durations"
@@ -67,21 +67,21 @@ end
 
 
 """
-    plot_idealization_representation(data::Dict{String, Vector{Float64}}, method_output::MethodOutput, T_left::Float64, T_right::Float64, Δt::Float64)
+    plot_idealization_representation(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
 
 Visualize ion channel data and its idealization using stacked subplots.  
 Supports `MikaMethodOutput` and `MeanDeviationMethodOutput`.
 
 # Arguments
-- `data::Dict{String, Vector{Float64}}`  
+- `data::Dict{String, Vector{Float32}}`  
 Dictionary containing `"x"` (raw signal data) and associated fields as needed.
 - `method_output::MethodOutput`  
 Output of an idealization algorithm. If it is `MikaMethodOutput`, uses the built-in idealized data; if `MeanDeviationMethodOutput`, reconstructs the idealization using dwell times and histogram analysis.
-- `T_left::Float64`
+- `T_left::Float32`
 Start time (seconds) for the plot interval.
-- `T_right::Float64`  
+- `T_right::Float32`  
 Total plot duration (seconds).
-- `Δt::Float64`  
+- `Δt::Float32`  
 Sampling interval (seconds).
 
 # Description
@@ -107,7 +107,7 @@ plot_idealization_representation(data, mean_deviation_output, 0.5, 1.0, 1e-4)
 # Note
 For `MeanDeviationMethodOutput`, histogram calculation and peak analysis are rerun to reconstruct the idealized trace.
 """
-function plot_idealization_representation(data::Dict{String, Vector{Float64}}, method_output::MethodOutput, T_left::Float64, T_right::Float64, Δt::Float64)
+function plot_idealization_representation(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
     @assert T_left <= T_right "N_left must be less or equal to N_right"
     @assert T_right <= (length(data["x"]) - 1) * Δt "T_right exceeds data duration"
 
@@ -119,14 +119,7 @@ function plot_idealization_representation(data::Dict{String, Vector{Float64}}, m
 
     y1 = data["x"][N_left:N_right]
 
-    if typeof(method_output) <: MikaMethodOutput
-        y2 = method_output.idealized_data[N_left:N_right]
-    elseif typeof(method_output) <: MeanDeviationMethodOutput
-        histogram_of_data = histogram_calculator(data["x"], 100)
-        prob_hist = calculate_probability_histogram(histogram_of_data)
-        hist_analysis = analyze_histogram_peaks(prob_hist)
-        y2 = idealize_data(data["x"], method_output.dwell_times_approx, hist_analysis, Δt)[N_left:N_right]
-    end
+    y2 = method_output.idealized_data[N_left:N_right]
 
     plt1 = plot(time, y1, color=:green, legend=false, title="Ion channel current plot", dpi=200)
     plt2 = plot(time, y2, color=:blue, legend=false, title="Idealization of ion channel", dpi=200)

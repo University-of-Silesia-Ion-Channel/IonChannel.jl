@@ -2,9 +2,9 @@ using StatsBase
 using Normalization
 
 """
-read_data(data_file_path::String, dwell_times_path::String) -> Tuple{Vector{Float64}, Vector{Float64}}
+read_data(data_file_path::String, dwell_times_path::String) -> Tuple{Vector{Float32}, Vector{Float32}}
 
-Read numerical data from two text files and return them as vectors of `Float64`.
+Read numerical data from two text files and return them as vectors of `Float32`.
 
 # Arguments
 - `data_file_path::String`: Path to a text file containing numerical values (one per line)
@@ -14,8 +14,8 @@ corresponding to dwell times.
 
 # Returns
 A tuple `(x, y)` where:
-- `x::Vector{Float64}`: Values read from the first file.
-- `y::Vector{Float64}`: Values read from the second file.
+- `x::Vector{Float32}`: Values read from the first file.
+- `y::Vector{Float32}`: Values read from the second file.
 
 # Example
 ```
@@ -25,10 +25,10 @@ x, y = read_data("data.txt", "dwell_times.txt")
 Both files must contain one floating-point number per line, with optional whitespace.
 """
 function read_data(data_file_path::String, dwell_times_path::String) :: 
-Tuple{Vector{Float64}, Vector{Float64}}
+Tuple{Vector{Float32}, Vector{Float32}}
     # reading data to RAM
-    x = open(data_file_path) do f; parse.(Float64, strip.(readlines(f))); end
-    y = open(dwell_times_path) do f; parse.(Float64, strip.(readlines(f))); end
+    x = open(data_file_path) do f; parse.(Float32, strip.(readlines(f))); end
+    y = open(dwell_times_path) do f; parse.(Float32, strip.(readlines(f))); end
     x, y
 end
 
@@ -112,23 +112,23 @@ function read_all_file_paths(data_folder::String) :: Tuple{String, Vector{String
 end
 
 """
-    get_specified_datapoints(x::Vector{Float64}, y::Vector{Float64}, Δt::Float64, data_size=-1) 
-        -> Dict{String, Vector{Float64}}
+    get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size=-1) 
+        -> Dict{String, Vector{Float32}}
 
 Extract a segment of the `x` data vector and the corresponding `dwell times` segment 
 up to a specified number of data points or total recording time.
 
 # Arguments
-- `x::Vector{Float64}`: Time series or measurement values.
-- `y::Vector{Float64}`: Corresponding dwell times between events or state changes.
-- `Δt::Float64`: Sampling interval in seconds for the `x` data.
-- `data_size::Int` (optional, default=`-1`):  
+- `x::Vector{Float32}`: Time series or measurement values.
+- `y::Vector{Float32}`: Corresponding dwell times between events or state changes.
+- `Δt::Float32`: Sampling interval in seconds for the `x` data.
+- `data_size::UInt32` (optional, default=`0`):  
 Number of samples to include in the result.  
-- If `-1`, the entire dataset is used.
+- If `0`, the entire dataset is used.
 - Otherwise, selects the first `data_size` samples of `x` and the dwell times covered by them.
 
 # Returns
-`Dict{String, Vector{Float64}}`:
+`Dict{String, Vector{Float32}}`:
 - `"x"` → The truncated `x` vector containing the first `data_size` samples (or all samples if `data_size=-1`).
 - `"dwell times"` → A truncated version of `y` containing only those dwell time segments whose cumulative sum
 does not exceed `max_time = data_size * Δt`.
@@ -153,9 +153,9 @@ println(data["dwell times"])
 - It assumes that `x` and `y` represent compatible datasets in terms of recording sequence.
 
 """
-function get_specified_datapoints(x::Vector{Float64}, y::Vector{Float64}, Δt::Float64, data_size=-1) :: Dict{String, Vector{Float64}}
+function get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size::UInt32=UInt32(0)) :: Dict{String, Vector{Float32}}
     N = length(x)
-    data_size = data_size == -1 || data_size > N ? N : data_size
+    data_size = data_size == 0 || data_size > N ? N : data_size
     max_time = data_size*Δt
     Y = y[findall(t -> t <= max_time, cumsum(y))]
     data = Dict("x" => x[1:data_size], "dwell times" => Y)
@@ -163,19 +163,19 @@ function get_specified_datapoints(x::Vector{Float64}, y::Vector{Float64}, Δt::F
 end
 
 """
-    normalize_data(data::Dict{String, Vector{Float64}}) -> Vector{Float64}
+    normalize_data(data::Dict{String, Vector{Float32}}) -> Vector{Float32}
 
 Normalize the `"x"` values in a data dictionary to have zero mean and unit variance
 using z-score normalization.
 
 # Arguments
-- `data::Dict{String, Vector{Float64}}`:  
+- `data::Dict{String, Vector{Float32}}`:  
 A dictionary containing at least the key `"x"` mapped to a vector of floating-point values
 (such as raw measurement data).  
 Other keys (e.g., `"dwell times"`) may be present but are ignored.
 
 # Returns
-- `Vector{Float64}`:  
+- `Vector{Float32}`:  
 A new vector of the same length as `data["x"]`, where each element has been normalized:
 
 z_i = (x_i - μ) / σ
@@ -200,27 +200,27 @@ normalized_x = normalize_data(data)
 - The `"x"` vector must not be empty and must contain finite real values.
 - This function does not modify the original dictionary; it returns a new normalized vector.
 """
-function normalize_data(data::Dict{String, Vector{Float64}}) :: Vector{Float64}
+function normalize_data(data::Dict{String, Vector{Float32}}) :: Vector{Float32}
     N = fit(ZScore, data["x"])
     normalized_data = normalize(data["x"], N)
     normalized_data
 end
 
 """
-    combine_time_with_data(data::Vector{Float64}, Δt::Float64, batch_size=1) -> Vector{Tuple{Float64, Float64}}
+    combine_time_with_data(data::Vector{Float32}, Δt::Float32, batch_size=1) -> Vector{Tuple{Float32, Float32}}
 
 Create a time-stamped version of raw data, pairing each value with its time in the sampled sequence.
 
 # Arguments
-- `data::Vector{Float64}`  
+- `data::Vector{Float32}`  
 The signal or measurement data to be time-stamped.
-- `Δt::Float64`  
+- `Δt::Float32`  
 The sampling interval (seconds) between consecutive data points.
-- `batch_size::Int` (optional, default = 1)  
+- `batch_size::UInt8` (optional, default = 1)  
 The step size for batch-wise processing; typically leave as 1 for full sequence.
 
 # Returns
-- `Vector{Tuple{Float64, Float64}}`  
+- `Vector{Tuple{Float32, Float32}}`  
 A vector of `(time, value)` pairs. The time values run from 0 to the end in steps of `Δt * batch_size`, each paired with the matching data value.
 
 # Description
@@ -233,7 +233,7 @@ data = [0.1, 0.2, 0.3, 0.4]
 pairs = combine_time_with_data(data, Δt)
 ```
 """
-function combine_time_with_data(data::Vector{Float64}, Δt::Float64, batch_size=1) :: Vector{Tuple{Float64, Float64}}
+function combine_time_with_data(data::Vector{Float32}, Δt::Float32, batch_size::UInt8=UInt8(1)) :: Vector{Tuple{Float32, Float32}}
     data_to_process = data[1:batch_size:end]
     data_with_times = collect(zip(0:Δt*batch_size:length(data_to_process), data_to_process))
     data_with_times

@@ -1,4 +1,4 @@
-function naive_method(data::Vector{Float64}, Δt::Float64, method::NaiveMethod) :: NaiveMethodOutput
+function naive_method(data::Vector{Float32}, Δt::Float32, method::NaiveMethod) :: NaiveMethodOutput
     # accessor functions for point for better readability
     value(point) = point[2]
     time(point) = point[1]
@@ -12,8 +12,6 @@ function naive_method(data::Vector{Float64}, Δt::Float64, method::NaiveMethod) 
 
     breakpoints = []
     previous_point = data_with_times[1]
-    # println("calculate_approximation    x₁: $(x1), x₂: $(x2)")
-    # find out where are we starting (top or bottom of the time series)
     if value(previous_point) < threshold
         current_state = 0 # starting at the bottom
     else

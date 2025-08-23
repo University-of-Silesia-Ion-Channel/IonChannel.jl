@@ -14,13 +14,13 @@ This allows code like `calculate_method(data, m, Δt)` to work for any
 method_function(::MikaMethod) = mika_method
 
 """
-    point(hist, indexfield::Symbol, valuefield::Symbol) -> Point
+    point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol) -> Point
 
 Extract a point (x, y) from a histogram analysis result using field names.
 
 # Arguments
-- `hist`  
-A structure (typically `HistPeakAnalysis`) containing edges and value fields.
+- `hist::HistPeakAnalysis`  
+A structurecontaining edges and value fields.
 - `indexfield::Symbol`  
 The field name indicating the index (e.g., `:pmax1_index`).
 - `valuefield::Symbol`  
@@ -42,7 +42,7 @@ peak_pt = point(analysis, :pmax1_index, :pmax1)
 println(peak_pt.x, ", ", peak_pt.y)
 ```
 """
-function point(hist, indexfield::Symbol, valuefield::Symbol) :: Point
+function point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol) :: Point
     x = hist.edges[getfield(hist, indexfield)]
     y = getfield(hist, valuefield)
     Point(x, y)
@@ -81,22 +81,22 @@ function line(point1::Point, point2::Point) :: Line
 end
 
 """
-    calculate_approximation(data_with_times::Vector{Tuple{Float64, Float64}}, threshold::ThresholdWidth) 
-        -> Tuple{Vector{Float64}, Vector{Float64}}
+    calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}}, threshold::ThresholdWidth) 
+        -> Tuple{Vector{Float32}, Vector{Float32}}
 
 Estimate breakpoints and dwell times in a time-stamped signal using a threshold band.
 
 # Arguments
-- `data_with_times::Vector{Tuple{Float64, Float64}}`  
+- `data_with_times::Vector{Tuple{Float32, Float32}}`  
 Vector of `(time, value)` pairs for the signal, e.g. output from `combine_time_with_data`.
 - `threshold::ThresholdWidth`  
 Threshold band object defining the central threshold and its lower/upper bounds.
 
 # Returns
-- `Tuple{Vector{Float64}, Vector{Float64}}`  
+- `Tuple{Vector{Float32}, Vector{Float32}}`  
 A tuple containing:
-    1. `breakpoints::Vector{Float64}` — estimated transition times (seconds)
-    2. `dwell_times::Vector{Float64}` — computed dwell times (seconds) between transitions
+    1. `breakpoints::Vector{Float32}` — estimated transition times (seconds)
+    2. `dwell_times::Vector{Float32}` — computed dwell times (seconds) between transitions
 
 # Description
 This algorithm tracks signal transitions using a threshold band, finding:
@@ -114,7 +114,7 @@ breaks, dwell_times = calculate_approximation(pairs, thr_band)
 println("First dwell time: ", dwell_times)
 ```
 """
-function calculate_approximation(data_with_times::Vector{Tuple{Float64, Float64}}, threshold::ThresholdWidth) :: Tuple{Vector{Float64}, Vector{Float64}}
+function calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}}, threshold::ThresholdWidth) :: Tuple{Vector{Float32}, Vector{Float32}}
     # accessor functions for point for better readability
     value(point) = point[2]
     time(point) = point[1]
@@ -122,8 +122,6 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float64, Float64}
     breakpoints = []
     previous_point = data_with_times[1]
     x1, x2 = threshold.x₁ <= threshold.x₂ ? (threshold.x₁, threshold.x₂) : (threshold.x₂, x₁)	
-    # println("calculate_approximation    x₁: $(x1), x₂: $(x2)")
-    # find out where are we starting (top or bottom of the time series)
     if value(previous_point) < threshold.threshold_centre
         current_state = 0 # starting at the bottom
     else
@@ -176,7 +174,7 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float64, Float64}
 end
 
 """
-    fit_normal_to_noise(noise::Noise) -> Tuple{Histogram, Vector{Float64}}
+    fit_normal_to_noise(noise::Noise) -> Tuple{Histogram, Vector{Float32}}
 
 Fit a normal distribution to noise data and compute its PDF alongside the normalized noise histogram.
 
@@ -185,7 +183,7 @@ Fit a normal distribution to noise data and compute its PDF alongside the normal
 A `Noise` struct containing residuals and their statistical parameters (mean and standard deviation).
 
 # Returns
-- `Tuple{Histogram, Vector{Float64}}`  
+- `Tuple{Histogram, Vector{Float32}}`  
 A tuple containing:
     1. A normalized histogram of the noise data representing the empirical PDF.
     2. A vector of PDF values from the fitted normal distribution evaluated at the histogram bin edges.
@@ -203,7 +201,7 @@ plot(hist_pdf, label="Noise histogram PDF")
 plot!(hist_pdf.edges, fitted_pdf, label="Fitted normal PDF")
 ```
 """
-function fit_normal_to_noise(noise::Noise) :: Tuple{Histogram, Vector{Float64}}
+function fit_normal_to_noise(noise::Noise) :: Tuple{Histogram, Vector{Float32}}
     fitted_dist = Normal(μ(noise), σ(noise))
     noise_histogram_pdf = fit(Histogram, noise_data(noise), nbins=100)
     noise_histogram_pdf = normalize(noise_histogram_pdf, mode=:pdf)
@@ -212,18 +210,18 @@ function fit_normal_to_noise(noise::Noise) :: Tuple{Histogram, Vector{Float64}}
 end
 
 """
-    fit_mse(noise::Histogram, fit::Vector{Float64}) -> Float64
+    fit_mse(noise::Histogram, fit::Vector{Float32}) -> Float32
 
 Calculate the mean squared error (MSE) between the histogram bin weights and a fitted model vector.
 
 # Arguments
 - `noise::Histogram`  
 Histogram representing the observed noise distribution (bin weights).
-- `fit::Vector{Float64}`  
+- `fit::Vector{Float32}`  
 Vector of fitted values corresponding to PDF or model estimates evaluated at histogram bins.
 
 # Returns
-- `Float64`  
+- `Float32`  
 The mean squared error computed as the average squared difference between the histogram weights and fitted values (excluding the last fitted value).
 
 # Description
@@ -235,13 +233,13 @@ mse = fit_mse(histogram_noise, fitted_pdf_vector)
 println("Mean squared error: ", mse)
 ```
 """
-fit_mse(noise::Histogram, fit::Vector{Float64}) :: Float64 = sum((noise.weights .- fit[1:end-1]) .^ 2) / length(noise.weights)
+fit_mse(noise::Histogram, fit::Vector{Float32}) :: Float32 = sum((noise.weights .- fit[1:end-1]) .^ 2) / length(noise.weights)
 
-function noise_test(noise::Noise) :: Float64
+function noise_test(noise::Noise) :: Float32
 	# data_1 = rand(Normal(0, 1), 50000)
 	batch_size = 50
 	num_batches = div(length(noise_data(noise)), batch_size)
-	pvals = Float64[]
+	pvals = Float32[]
 	
 	for i in 1:num_batches
 	    batch = noise_data(noise)[(i-1)*batch_size+1 : i*batch_size]
@@ -254,14 +252,14 @@ function noise_test(noise::Noise) :: Float64
 end
 
 """
-    mika_method(data::Vector{Float64}, Δt::Float64, method::MikaMethod) -> MikaMethodOutput
+    mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod) -> MikaMethodOutput
 
 Apply the Mika idealization algorithm to a signal, using histogram-based thresholding and noise optimization.
 
 # Arguments
-- `data::Vector{Float64}`  
+- `data::Vector{Float32}`  
 The original raw signal to be idealized.
-- `Δt::Float64`  
+- `Δt::Float32`  
 Sampling interval in seconds.
 - `method::MikaMethod`  
 Parameters for the Mika method, including histogram bin count and threshold mixing factor.
@@ -288,7 +286,7 @@ println("Breakpoints: ", breakpoints(result))
 println("Noise MSE: ", noise_mse(result))
 ```
 """
-function mika_method(data::Vector{Float64}, Δt::Float64, method::MikaMethod) :: MikaMethodOutput
+function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod) :: MikaMethodOutput
     histogram_of_data = histogram_calculator(data, method.number_of_histogram_bins)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
@@ -307,8 +305,6 @@ function mika_method(data::Vector{Float64}, Δt::Float64, method::MikaMethod) ::
 
     noise_ = noise(data, idealized_data)
     best_noise = noise_
-    # noise_mse = fit_mse(fit_normal_to_noise(noise_)...)
-    # noise_mse = pvalue(ApproximateOneSampleKSTest(noise_data(noise_), Normal(μ(noise_), σ(noise_))))[1]
     noise_mse = noise_test(noise_)
     best_noise_mse = noise_mse
 
@@ -332,24 +328,16 @@ function mika_method(data::Vector{Float64}, Δt::Float64, method::MikaMethod) ::
     for min_ind in hist_analysis.pmin_index+step:step:hist_analysis.pmax1_index
         hist_analysis.pmin_index = min_ind
         threshold_width = get_threshold_width(hist_analysis, method.ϵ)
-        # println(min_ind)
         
         temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold_width)
         
         idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
         noise_ = noise(data, idealized_data)
-        # noise_mse = fit_mse(fit_normal_to_noise(noise_)...)
-        # noise_mse = pvalue(ApproximateOneSampleKSTest(noise_data(noise_), Normal(μ(noise_), σ(noise_))))[1]
         noise_mse = noise_test(noise_)
         
-        # println("noise_mse of index $(min_ind) = $(noise_mse)")
         if noise_mse > best_noise_mse
-            # @info "Found better noise MSE: $noise_mse at index $min_ind"
-            # println("changing threshold")
-            # println("best_noise_mse: $(best_noise_mse), noise_mse: $(noise_mse)")
             threshold = hist_analysis.edges[min_ind]
             threshold_index = min_ind
-            # println(threshold_index)
             best_noise = noise_
             previous_noise_mse = noise_mse
             best_noise_mse = noise_mse
