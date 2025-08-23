@@ -1,0 +1,104 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  validate-project:
+    name: Validate Project
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+
+      - name: Run project validation
+        run: |
+          julia --project=@. -e 'import Pkg; Pkg.instantiate(); println("Project.toml and Manifest.toml present and instantiated")'
+
+  test:
+    name: Tests — ${{ matrix.os }} · Julia ${{ matrix.julia-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        julia-version: ["1.11", "1.12"]
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python (for PyCall)
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - name: Cache Julia packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.julia/compiled
+            ~/.julia/packages
+            ~/.julia/artifacts
+          key: ${{ runner.os }}-julia-${{ matrix.julia-version }}-${{ hashFiles('**/Project.toml', '**/Manifest.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-julia-${{ matrix.julia-version }}-
+
+      - name: Install Python deps if present
+        if: always()
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; else echo 'No python requirements'; fi
+
+      - name: Instantiate & precompile
+        env:
+          JULIA_DEPOT_PATH: ${{ runner.temp }}/julia-depot
+        run: |
+          export PYTHON=$(which python3 || true)
+          julia --project=@. -e 'ENV["PYTHON_JL_RUNTIME_PYTHON"] = Sys.which("python3"); import Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Run tests and capture logs
+        env:
+          JULIA_DEPOT_PATH: ${{ runner.temp }}/julia-depot
+        run: |
+          mkdir -p test/logs
+          LOG=test/logs/test-${{ matrix.os }}-julia-${{ matrix.julia-version }}.log
+          # run tests with coverage collection
+          julia --project=@. -e 'import Pkg; Pkg.test(coverage=true)' 2>&1 | tee "$LOG"
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.os }}-julia-${{ matrix.julia-version }}
+          path: test/logs/**
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-julia-${{ matrix.julia-version }}
+          path: |
+            coverage/**
+      - name: Upload coverage to Codecov (optional)
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage
+
+

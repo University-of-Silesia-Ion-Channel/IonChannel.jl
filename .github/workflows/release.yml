@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  test-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+
+      - name: Instantiate
+        run: |
+          julia --project=@. -e 'import Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Run tests
+        run: |
+          julia --project=@. -e 'import Pkg; Pkg.test()'
+
+      - name: Create release (source tarball)
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create source zip
+        run: |
+          ZIP=source-${{ github.ref_name }}.zip
+          git archive --format=zip --output="$ZIP" HEAD
+          echo "Created $ZIP"
+
+      - name: Upload source tarball
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: source-${{ github.ref_name }}.zip
+          asset_name: source-${{ github.ref_name }}.zip
+          asset_content_type: application/zip

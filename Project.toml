@@ -1,3 +1,12 @@
+name = "IonChannel"
+uuid = "0e1d2c3b-4a5f-6789-abcd-0123456789ab"
+version = "0.1.0"
+authors = ["University of Silesia <noreply@university.edu>"]
+license = "MIT"
+
+[compat]
+julia = ">= 1.8"
+
 [deps]
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 HypothesisTests = "09f84164-cd44-5f33-b23f-e6b0d136a0d5"
