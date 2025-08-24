@@ -119,7 +119,9 @@ show_approx_on_plot(Dict("x"=>x, "dwell times"=>y), result, 0.5f0, 0.9f0, t)
 Created and maintained by [Piotr Mika](https://github.com/p-j-o-t-e-r).
 """
 module IonChannel
-
+# TODO: the Pkg manipulations are not advised in a module and should be done externally
+# this breaks precompilation and leads to issues with CI testing
+# please refactor this code I beg you
   import Pkg
   Pkg.activate("../")
   packages = ["StatsBase", "Distributions", "Plots", "Normalization"]
