@@ -19,4 +19,3 @@ jobs:
       - name: Instantiate and run tests
         run: |
           julia --project=@. -e 'import Pkg; Pkg.instantiate(); Pkg.test()'
-        
