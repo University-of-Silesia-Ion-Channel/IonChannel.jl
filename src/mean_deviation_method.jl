@@ -1,3 +1,4 @@
+using StatsBase
 """
     method_function(::MeanDeviationMethod) -> Function
 

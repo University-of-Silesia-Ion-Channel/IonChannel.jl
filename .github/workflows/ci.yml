@@ -1,0 +1,48 @@
+name: Minimal CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'  # choose a supported version
+      # Create and populate an isolated venv from requirements.txt
+      - name: Create venv and install requirements
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      # Expose venv path for later steps
+      - name: Export venv path
+        id: venv
+        run: echo "VENV_PY=$(pwd)/.venv/bin/python" >> $GITHUB_ENV
+
+      # Point PyCall to the venv’s python BEFORE PyCall is built/used
+      # PYCALL_JL_RUNTIME_PYTHON is the current variable; PYTHON works for older PyCall
+      - name: Configure PyCall to use venv Python
+        run: |
+          echo "PYCALL_JL_RUNTIME_PYTHON=${VENV_PY}" >> $GITHUB_ENV
+          echo "PYTHON=${VENV_PY}" >> $GITHUB_ENV  
+
+
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.11'
+
+      - name: Instantiate and run tests
+        env:
+          PYCALL_JL_RUNTIME_PYTHON: ${{ env.PYCALL_JL_RUNTIME_PYTHON }}
+          PYTHON: ${{ env.PYTHON }}
+        run: |
+          julia --project=@. -e 'import Pkg; Pkg.instantiate(); try; Pkg.build("PyCall"); catch; end; using PyCall; @info "PyCall python" PyCall.python; Pkg.test()'

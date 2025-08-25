@@ -4,7 +4,7 @@ using StatsBase
 @testset "histogram_calculator and related" begin
     # simple bimodal data: half around -1, half around +2
     data = vcat(fill(-1.0f0, 50), fill(2.0f0, 50))
-    hist = IonChannel.histogram_calculator(data, 10)
+    hist = IonChannel.histogram_calculator(data, UInt16(10))
 
     @test isa(hist, Histogram)
     # edges should be bins+1

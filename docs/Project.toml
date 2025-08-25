@@ -1,0 +1,6 @@
+name = "IonChannelDocs"
+uuid = "11111111-2222-3333-4444-555555555555"
+version = "0.1.0"
+
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"

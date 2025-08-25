@@ -1,3 +1,6 @@
+import Pkg
+Pkg.activate(".")
+
 using Test
 
 include("../src/IonChannel.jl")

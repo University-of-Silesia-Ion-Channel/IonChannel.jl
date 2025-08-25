@@ -42,7 +42,7 @@ peak_pt = point(analysis, :pmax1_index, :pmax1)
 println(peak_pt.x, ", ", peak_pt.y)
 ```
 """
-function point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol) :: Point
+function point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol)::Point
     x = hist.edges[getfield(hist, indexfield)]
     y = getfield(hist, valuefield)
     Point(x, y)
@@ -74,8 +74,8 @@ l = line(p1, p2)
 println("y = \$(l.a)x + \$(l.b)")
 ```
 """
-function line(point1::Point, point2::Point) :: Line
-    a = (point1.y - point2.y)/(point1.x - point2.x)
+function line(point1::Point, point2::Point)::Line
+    a = (point1.y - point2.y) / (point1.x - point2.x)
     b = point1.y - a * point1.x
     Line(a, b)
 end
@@ -114,14 +114,14 @@ breaks, dwell_times = calculate_approximation(pairs, thr_band)
 println("First dwell time: ", dwell_times)
 ```
 """
-function calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}}, threshold::ThresholdWidth) :: Tuple{Vector{Float32}, Vector{Float32}}
+function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}, threshold::ThresholdWidth)::Tuple{Vector{Float32},Vector{Float32}}
     # accessor functions for point for better readability
     value(point) = point[2]
     time(point) = point[1]
 
     breakpoints = []
     previous_point = data_with_times[1]
-    x1, x2 = threshold.x₁ <= threshold.x₂ ? (threshold.x₁, threshold.x₂) : (threshold.x₂, x₁)	
+    x1, x2 = threshold.x₁ <= threshold.x₂ ? (threshold.x₁, threshold.x₂) : (threshold.x₂, x₁)
     if value(previous_point) < threshold.threshold_centre
         current_state = 0 # starting at the bottom
     else
@@ -132,39 +132,39 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}
     for point in data_with_times[2:end, :]
         # check if point is in the band
         if x1 < value(point) < x2
-        # add that time to the temporary list
-        push!(temp_time_list, time(point))
+            # add that time to the temporary list
+            push!(temp_time_list, time(point))
         elseif !isempty(temp_time_list)
-        if current_state == 0
-            if value(point) > x2
-            # add the breakpoint
-            push!(breakpoints, median(temp_time_list))
-            # change current state
-            current_state = 1
+            if current_state == 0
+                if value(point) > x2
+                    # add the breakpoint
+                    push!(breakpoints, median(temp_time_list))
+                    # change current state
+                    current_state = 1
+                end
+            else
+                if value(point) < x1
+                    # add the breakpoint
+                    push!(breakpoints, median(temp_time_list))
+                    # change current state
+                    current_state = 0
+                end
             end
+            # reinitialize the temporary list
+            temp_time_list = []
         else
-            if value(point) < x1
-            # add the breakpoint
-            push!(breakpoints, median(temp_time_list))
-            # change current state
-            current_state = 0
+            # naive portion of the algorithm (when ϵ small or 0)
+            if current_state == 0
+                if value(previous_point) < x1 && value(point) > x2
+                    push!(breakpoints, time(point))
+                    current_state = 1
+                end
+            else
+                if value(point) < x1 && value(previous_point) > x2
+                    push!(breakpoints, time(point))
+                    current_state = 0
+                end
             end
-        end
-        # reinitialize the temporary list
-        temp_time_list = []
-        else
-        # naive portion of the algorithm (when ϵ small or 0)
-        if current_state == 0
-            if value(previous_point) < x1 && value(point) > x2
-            push!(breakpoints, time(point))
-            current_state = 1
-            end
-        else
-            if value(point) < x1 && value(previous_point) > x2
-            push!(breakpoints, time(point))
-            current_state = 0
-            end
-        end
         end
         # change the previous point to the next one
         previous_point = point
@@ -172,69 +172,6 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}
     dwell_times = append!([breakpoints[1]], diff(breakpoints))
     breakpoints, dwell_times
 end
-
-"""
-    fit_normal_to_noise(noise::Noise) -> Tuple{Histogram, Vector{Float32}}
-
-Fit a normal distribution to noise data and compute its PDF alongside the normalized noise histogram.
-
-# Arguments
-- `noise::Noise`  
-A `Noise` struct containing residuals and their statistical parameters (mean and standard deviation).
-
-# Returns
-- `Tuple{Histogram, Vector{Float32}}`  
-A tuple containing:
-    1. A normalized histogram of the noise data representing the empirical PDF.
-    2. A vector of PDF values from the fitted normal distribution evaluated at the histogram bin edges.
-
-# Description
-This function fits a Normal distribution model (`Normal(μ, σ)`) to the noise residuals,
-then produces a normalized histogram (PDF mode) of the noise data for comparison.
-It also computes theoretical PDF values of the fitted distribution at corresponding bin edges.
-
-# Example
-```
-noise_obj = noise(data, idealized_values)
-hist_pdf, fitted_pdf = fit_normal_to_noise(noise_obj)
-plot(hist_pdf, label="Noise histogram PDF")
-plot!(hist_pdf.edges, fitted_pdf, label="Fitted normal PDF")
-```
-"""
-function fit_normal_to_noise(noise::Noise) :: Tuple{Histogram, Vector{Float32}}
-    fitted_dist = Normal(μ(noise), σ(noise))
-    noise_histogram_pdf = fit(Histogram, noise_data(noise), nbins=100)
-    noise_histogram_pdf = normalize(noise_histogram_pdf, mode=:pdf)
-    fitted_dist_pdf = pdf.(fitted_dist, noise_histogram_pdf.edges)[1]
-    noise_histogram_pdf, fitted_dist_pdf
-end
-
-"""
-    fit_mse(noise::Histogram, fit::Vector{Float32}) -> Float32
-
-Calculate the mean squared error (MSE) between the histogram bin weights and a fitted model vector.
-
-# Arguments
-- `noise::Histogram`  
-Histogram representing the observed noise distribution (bin weights).
-- `fit::Vector{Float32}`  
-Vector of fitted values corresponding to PDF or model estimates evaluated at histogram bins.
-
-# Returns
-- `Float32`  
-The mean squared error computed as the average squared difference between the histogram weights and fitted values (excluding the last fitted value).
-
-# Description
-Computes a goodness-of-fit metric quantifying how closely the fitted vector approximates the observed histogram weights.
-
-# Example
-```
-mse = fit_mse(histogram_noise, fitted_pdf_vector)
-println("Mean squared error: ", mse)
-```
-"""
-fit_mse(noise::Histogram, fit::Vector{Float32}) :: Float32 = sum((noise.weights .- fit[1:end-1]) .^ 2) / length(noise.weights)
-
 
 """
     noise_test(noise::Noise) :: Float32
@@ -273,20 +210,20 @@ normality score.
   the vector of samples to test (e.g., `noise.ξ`). If not defined, replace
   `noise_data(noise)` with `noise.ξ`.
 """
-function noise_test(noise::Noise) :: Float32
-	# data_1 = rand(Normal(0, 1), 50000)
-	batch_size = 50
-	num_batches = div(length(noise_data(noise)), batch_size)
-	pvals = Float32[]
-	
-	for i in 1:num_batches
-	    batch = noise_data(noise)[(i-1)*batch_size+1 : i*batch_size]
-	    test = ShapiroWilkTest(batch)
-	    push!(pvals, pvalue(test))
-	end
-	
-	mean_pval = mean(pvals)
-	mean_pval
+function noise_test(noise::Noise)::Float32
+    # data_1 = rand(Normal(0, 1), 50000)
+    batch_size = 50
+    num_batches = div(length(noise_data(noise)), batch_size)
+    pvals = Float32[]
+
+    for i in 1:num_batches
+        batch = noise_data(noise)[(i-1)*batch_size+1:i*batch_size]
+        test = ShapiroWilkTest(batch)
+        push!(pvals, pvalue(test))
+    end
+
+    mean_pval = mean(pvals)
+    mean_pval
 end
 
 """
@@ -324,7 +261,7 @@ println("Breakpoints: ", breakpoints(result))
 println("Noise MSE: ", noise_mse(result))
 ```
 """
-function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod) :: MikaMethodOutput
+function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::MikaMethodOutput
     histogram_of_data = histogram_calculator(data, method.number_of_histogram_bins)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
@@ -357,22 +294,22 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod) ::
 
     max_left = sum(hist_analysis.weights[hist_analysis.pmax1_index:hist_analysis.pmin_index])
     max_right = sum(hist_analysis.weights[hist_analysis.pmin_index:hist_analysis.pmax2_index])
-    
+
     step = max_left > max_right ? -1 : 1
-    
+
     # optimize the threshold
     previous_noise_mse = noise_mse
     # @info "Initial noise MSE: $noise_mse"
     for min_ind in hist_analysis.pmin_index+step:step:hist_analysis.pmax1_index
         hist_analysis.pmin_index = min_ind
         threshold_width = get_threshold_width(hist_analysis, method.ϵ)
-        
+
         temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold_width)
-        
+
         idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
         noise_ = noise(data, idealized_data)
         noise_mse = noise_test(noise_)
-        
+
         if noise_mse > best_noise_mse
             threshold = hist_analysis.edges[min_ind]
             threshold_index = min_ind
