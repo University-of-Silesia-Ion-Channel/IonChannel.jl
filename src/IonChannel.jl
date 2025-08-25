@@ -119,16 +119,8 @@ show_approx_on_plot(Dict("x"=>x, "dwell times"=>y), result, 0.5f0, 0.9f0, t)
 Created and maintained by [Piotr Mika](https://github.com/p-j-o-t-e-r).
 """
 module IonChannel
-# TODO: the Pkg manipulations are not advised in a module and should be done externally
-# this breaks precompilation and leads to issues with CI testing
-# please refactor this code I beg you
   import Pkg
   Pkg.activate("../")
-
-	# ENV["PYTHON_JL_RUNTIME_PYTHON"] = Sys.which("python3")
-	# ENV["PYTHON"] = Sys.which("python3")
-  # @info "Using Python at: $(ENV["PYTHON"])"
-	# Pkg.build("PyCall")
 
   include("./types.jl")
   include("./read_data.jl")
@@ -185,8 +177,6 @@ module IonChannel
     get_threshold_width,
     calculate_approximation,
     idealize_data,
-    fit_normal_to_noise,
-    fit_mse,
     mika_method,
     show_threshold_on_plot,
     plot_idealization_representation,

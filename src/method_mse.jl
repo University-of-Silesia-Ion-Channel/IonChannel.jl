@@ -1,7 +1,6 @@
 using Distributions
 using StatsBase
 using Markdown
-using PlutoUI
 
 """
     calculate_mean_square_error(
