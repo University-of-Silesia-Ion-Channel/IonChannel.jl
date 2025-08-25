@@ -2,10 +2,10 @@ using StatsBase
 """
     method_function(::MeanDeviationMethod) -> Function
 
-Return the algorithm function associated with a `MeanDeviationMethod`.
+Return the algorithm function associated with a [`MeanDeviationMethod`](@ref).
 
 This allows code like `calculate_method(data, m, Δt)` to work for any
-`IdealizationMethod` subtype without changing the executor logic.
+[`IdealizationMethod`](@ref) subtype without changing the executor logic.
 """
 method_function(::MeanDeviationMethod) = deviation_from_mean_method
 

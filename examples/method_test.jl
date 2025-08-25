@@ -104,19 +104,6 @@ begin
 	model = keras.models.load_model(models_path * model_file)
 end
 
-# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
-# ╠═╡ disabled = true
-#=╠═╡
-begin
-	error_outputs = []
-	for method in methods
-		@info "using $(method)"
-		push!(error_outputs, mean_error(method, Δt, UInt32(225000), true))
-	end
-	error_outputs
-end
-  ╠═╡ =#
-
 # ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
 md"""
 Pick membrane voltage: $(@bind voltage Select(voltage_names))
@@ -293,6 +280,16 @@ MDL minimum segments $(@bind min_seg Slider(1:300, default=300, show_value=true)
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
 # methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
 methods = [DeepChannelMethod(model), MDLMethod(min_seg, threshold, 100), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
+
+# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
+begin
+	error_outputs = []
+	for method in methods
+		@info "using $(method)"
+		push!(error_outputs, mean_error(method, Δt, UInt32(225000), true))
+	end
+	error_outputs
+end
 
 # ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
 begin

@@ -22,7 +22,7 @@ Sampling interval (seconds).
 Plots the time series `"x"` for the duration `[T_left, T_right]` as a green line.  
 - **Red vertical lines:** Mark true breakpoints, based on cumulative dwell times from `T_left` to `T_right`.
 - **Blue vertical lines:** Indicate approximated breakpoints detected by the idealization method, up to from `T_left` to `T_right`.
-- **Threshold line:** If the `method_output` is a `MikaMethodOutput`, overlays a horizontal line at the chosen threshold.
+- **Threshold line:** If the `method_output` is a [`MikaMethodOutput`](@ref), overlays a horizontal line at the chosen threshold.
 
 Line opacities scale with the interval length.  
 Additional features—such as band limits or idealized data overlay—can be enabled by uncommenting code sections.
@@ -70,13 +70,13 @@ end
     plot_idealization_representation(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
 
 Visualize ion channel data and its idealization using stacked subplots.  
-Supports `MikaMethodOutput` and `MeanDeviationMethodOutput`.
+Supports [`MikaMethodOutput`](@ref) and [`MeanDeviationMethodOutput`](@ref).
 
 # Arguments
 - `data::Dict{String, Vector{Float32}}`  
 Dictionary containing `"x"` (raw signal data) and associated fields as needed.
 - `method_output::MethodOutput`  
-Output of an idealization algorithm. If it is `MikaMethodOutput`, uses the built-in idealized data; if `MeanDeviationMethodOutput`, reconstructs the idealization using dwell times and histogram analysis.
+Output of an idealization algorithm. If it is [`MikaMethodOutput`](@ref), uses the built-in idealized data; if [`MeanDeviationMethodOutput`](@ref), reconstructs the idealization using dwell times and histogram analysis.
 - `T_left::Float32`
 Start time (seconds) for the plot interval.
 - `T_right::Float32`  
@@ -105,7 +105,7 @@ plot_idealization_representation(data, mean_deviation_output, 0.5, 1.0, 1e-4)
 ```
 
 # Note
-For `MeanDeviationMethodOutput`, histogram calculation and peak analysis are rerun to reconstruct the idealized trace.
+For [`MeanDeviationMethodOutput`](@ref), histogram calculation and peak analysis are rerun to reconstruct the idealized trace.
 """
 function plot_idealization_representation(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
     @assert T_left <= T_right "N_left must be less or equal to N_right"
@@ -137,7 +137,7 @@ Plot the data histogram and visualize threshold-related features and detected pe
 
 # Arguments
 - `data_histogram::Histogram`  
-The histogram of original data, typically created with `histogram_calculator`.
+The histogram of original data, typically created with [`histogram_calculator`](@ref).
 - `histogram_analysis::HistPeakAnalysis`  
 Results from peak and trough detection, providing bin indices for annotated visualization.
 - `method_output::MikaMethodOutput`  

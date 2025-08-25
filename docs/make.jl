@@ -1,13 +1,13 @@
-using Documenter
-using Pkg
-Pkg.activate(joinpath(@__DIR__, ".."))
-Pkg.instantiate()
+import Pkg
+include("../src/IonChannel.jl")
+using .IonChannel
 
-using IonChannel
+Pkg.activate(joinpath(@__DIR__, "."))
+Pkg.instantiate()
+using Documenter
 
 makedocs(
     modules=[IonChannel],
     sitename = "IonChannel.jl",
-    authors = ["IonChannel Contributors"],
-    format = Documenter.HTML()
+    authors = "Piotr Mika"
 )

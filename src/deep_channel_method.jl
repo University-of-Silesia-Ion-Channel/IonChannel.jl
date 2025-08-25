@@ -3,10 +3,10 @@ using PyCall
 """
     method_function(::DeepChannelMethod) -> Function
 
-Return the algorithm function associated with a `DeepChannelMethod`.
+Return the algorithm function associated with a [`DeepChannelMethod`](@ref).
 
 This allows code like `calculate_method(data, m, Δt)` to work for any
-`IdealizationMethod` subtype without changing the executor logic.
+[`IdealizationMethod`](@ref) subtype without changing the executor logic.
 """
 method_function(::DeepChannelMethod) = deep_channel_method
 
@@ -19,11 +19,11 @@ Apply a deep learning–based ion-channel state detection method to time series 
 # Arguments
 - `data::Vector{Float32}`: The raw time-series signal (e.g., ion-channel recording).
 - `Δt::Float32`: Sampling interval of the signal. Used to convert sample indices into time units.
-- `c_method::DeepChannelMethod`: A trained deep learning model encapsulated in a `DeepChannelMethod`
+- `c_method::DeepChannelMethod`: A trained deep learning model encapsulated in a [`DeepChannelMethod`](@ref)
    object. The underlying model must support `.predict`.
 
 # Returns
-A `DeepChannelMethodOutput` containing:
+A [`DeepChannelMethodOutput`](@ref) containing:
 - `dwell_times_approx::Vector{Float32}`: Approximate dwell times (time spent in each state).
 - `breakpoints::Vector{Float32}`: Time points where state transitions occur.
 - `class_predict_val::Vector{UInt8}`: Per-sample predicted state labels, starting at `0`.
