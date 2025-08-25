@@ -22,7 +22,7 @@ This method:
   and supports the auxiliary functions used here (see Notes).
 
 # Returns
-- `NaiveMethodOutput`: A struct with fields:
+- [`NaiveMethodOutput`](@ref): A struct with fields:
   - `breakpoints::Vector{Float32}`: Times at which state transitions occur.
   - `dwell_times::Vector{Float32}`: Durations between successive breakpoints
     (first dwell time is `breakpoints[1]`).
@@ -36,7 +36,7 @@ This method:
    - `hist_analysis = analyze_histogram_peaks(prob_hist)`
    - `threshold = hist_analysis.edges[hist_analysis.pmin_index]`
 3. Combine times with data:
-   - `data_with_times = combine_time_with_data(data, Δt)` (expected shape `N×2`, columns: time, value)
+   - `data_with_times = combine_time_with_data(data, Δt)` (expected shape `Nx2`, columns: time, value)
 4. Initialize state from first sample relative to `threshold`.
 5. Iterate through samples:
    - Detect upward crossings (0→1) when previous < threshold and current > threshold.
@@ -114,9 +114,9 @@ end
 """
     method_function(::NaiveMethod) -> Function
 
-Return the algorithm function associated with a `NaiveMethod`.
+Return the algorithm function associated with a [`NaiveMethod`](@ref).
 
 This allows code like `calculate_method(data, m, Δt)` to work for any
-`IdealizationMethod` subtype without changing the executor logic.
+[`IdealizationMethod`](@ref) subtype without changing the executor logic.
 """
 method_function(::NaiveMethod) = naive_method

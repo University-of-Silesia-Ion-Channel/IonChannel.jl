@@ -5,62 +5,62 @@ A Julia module for advanced idealization and analysis of ion channel single-mole
 
 # Overview
 
-`IonChannel` provides type-safe, highly modular tools for the idealization, segmentation, and analysis of ion channel current traces. It implements and integrates methods based on running-mean deviation, histogram-based segmentation, threshold optimization, MDL change-point detection, and deep-learning-based state detection, supporting workflows in quantitative biophysics and single-molecule electrophysiology.
+[`IonChannel`](@ref) provides type-safe, highly modular tools for the idealization, segmentation, and analysis of ion channel current traces. It implements and integrates methods based on running-mean deviation, histogram-based segmentation, threshold optimization, MDL change-point detection, and deep-learning-based state detection, supporting workflows in quantitative biophysics and single-molecule electrophysiology.
 
 ## Main Features
 
 - Idealization Methods:
-  - Abstract parameter types (`IdealizationMethod`) and result types (`MethodOutput`) for extensible algorithms.
-  - Implementations: deviation-from-mean (`MeanDeviationMethod`), Mika method (`MikaMethod`), Naive histogram thresholding (`NaiveMethod`), MDL segmentation (`MDLMethod`), and DeepChannel (Python model via `PyCall`, `DeepChannelMethod`).
+  - Abstract parameter types ([`IdealizationMethod`](@ref)) and result types ([`MethodOutput`](@ref)) for extensible algorithms.
+  - Implementations: deviation-from-mean ([`MeanDeviationMethod`](@ref)), Mika method ([`MikaMethod`](@ref)), Naive histogram thresholding ([`NaiveMethod`](@ref)), MDL segmentation ([`MDLMethod`](@ref)), and DeepChannel (Python model via `PyCall`, [`DeepChannelMethod`](@ref)).
 
 - Data Handling:
-  - Read paired raw traces and dwell times from files: `read_data`, or enumerate dataset folders with `read_all_file_paths`.
-  - Extract subsets, align dwell windows, and normalize signals: `get_specified_datapoints`, `normalize_data`, `combine_time_with_data`.
+  - Read paired raw traces and dwell times from files: [`read_data`](@ref), or enumerate dataset folders with [`read_all_file_paths`](@ref).
+  - Extract subsets, align dwell windows, and normalize signals: [`get_specified_datapoints`](@ref), [`normalize_data`](@ref), [`combine_time_with_data`](@ref).
 
 - Histogram Analysis:
-  - Build histograms and probability histograms: `histogram_calculator`, `calculate_probability_histogram`.
-  - Peak/trough and midpoint detection for bimodal signals: `analyze_histogram_peaks` → `HistPeakAnalysis`.
+  - Build histograms and probability histograms: [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref).
+  - Peak/trough and midpoint detection for bimodal signals: [`analyze_histogram_peaks`](@ref) → [`HistPeakAnalysis`](@ref).
 
 - Noise and Fit Evaluation:
-  - Residual modeling and statistics with `Noise` and `noise_data`.
-  - Dwell-time distribution comparison via `calculate_mean_square_error` (returns MSE and histograms).
-  - End-to-end benchmark across datasets with `mean_error` (returns `MeanError`).
+  - Residual modeling and statistics with [`Noise`](@ref) and [`noise_data`](@ref).
+  - Dwell-time distribution comparison via [`calculate_mean_square_error`](@ref) (returns MSE and histograms).
+  - End-to-end benchmark across datasets with [`mean_error`](@ref) (returns [`MeanError`](@ref)).
 
 - Visualization:
-  - Overlay exact vs. approximated breakpoints and thresholds: `show_approx_on_plot`.
-  - Stacked plots of raw vs. idealized sequences: `plot_idealization_representation`.
-  - Threshold and peaks on histogram (Mika): `show_threshold_on_plot`.
+  - Overlay exact vs. approximated breakpoints and thresholds: [`show_approx_on_plot`](@ref).
+  - Stacked plots of raw vs. idealized sequences: [`plot_idealization_representation`](@ref).
+  - Threshold and peaks on histogram (Mika): [`show_threshold_on_plot`](@ref).
 
 ## Typical Workflow
 
 1. Reading Data:
-   Use `read_data` or `read_all_file_paths` to load trace data and associated dwell times.
+   Use [`read_data`](@ref) or [`read_all_file_paths`](@ref) to load trace data and associated dwell times.
 
 2. Idealization:
-   Choose an idealization method struct (e.g. `MeanDeviationMethod`, `MikaMethod`, `NaiveMethod`, `MDLMethod`, `DeepChannelMethod`) and run the algorithm (e.g., `calculate_method`, `mika_method`, `naive_method`, `mdl_method`, `deep_channel_method`) to obtain a `<: MethodOutput` with `breakpoints`, `dwell_times_approx`, and an `idealized_data` sequence.
+   Choose an idealization method struct (e.g. [`MeanDeviationMethod`](@ref), [`MikaMethod`](@ref), [`NaiveMethod`](@ref), [`MDLMethod`](@ref), [`DeepChannelMethod`](@ref)) and run the algorithm (e.g., [`calculate_method`](@ref), [`mika_method`](@ref), [`naive_method`](@ref), [`mdl_method`](@ref), [`deep_channel_method`](@ref)) to obtain a `<: MethodOutput` with `breakpoints`, `dwell_times_approx`, and an `idealized_data` sequence.
 
 3. Histogram and Threshold:
-   Generate and analyze histograms with `histogram_calculator` and `analyze_histogram_peaks`. Convert counts to probabilities via `calculate_probability_histogram`.
+   Generate and analyze histograms with [`histogram_calculator`](@ref) and [`analyze_histogram_peaks`](@ref). Convert counts to probabilities via [`calculate_probability_histogram`](@ref).
 
 4. Visualization:
-   Visualize results using `show_approx_on_plot`, `show_threshold_on_plot`, and `plot_idealization_representation`.
+   Visualize results using [`show_approx_on_plot`](@ref), [`show_threshold_on_plot`](@ref), and [`plot_idealization_representation`](@ref).
 
 5. Noise and Evaluation:
-   Quantify residuals with `noise_data` and evaluate dwell-time fit via `calculate_mean_square_error`; assess full-run performance with `mean_error`.
+   Quantify residuals with [`noise_data`](@ref) and evaluate dwell-time fit via [`calculate_mean_square_error`](@ref); assess full-run performance with [`mean_error`](@ref).
 
 ## Extending the Module
 
 To add a new idealization method:
 1. Create a new parameter struct `<: IdealizationMethod` (store parameters only).
 2. Implement your algorithm `my_method(data::Vector{Float32}, t::Float32, m::MyMethod) -> <: MethodOutput`.
-3. Link your method via `method_function(::MyMethod) = my_method` so it works with the generic `calculate_method`.
+3. Link your method via `method_function(::MyMethod) = my_method` so it works with the generic [`calculate_method`](@ref).
 
 ## Key Types
 
-- Abstractions: `IdealizationMethod`, `MethodOutput`
-- Methods and outputs: `MeanDeviationMethod`, `MeanDeviationMethodOutput`; `MikaMethod`, `MikaMethodOutput`; `NaiveMethod`, `NaiveMethodOutput`; `MDLMethod`, `MDLMethodOutput`; `DeepChannelMethod`, `DeepChannelMethodOutput`
-- Analysis helpers: `HistPeakAnalysis`, `ThresholdWidth`, `Noise`, `Point`, `Line`
-- Evaluation aggregates: `MeanError`
+- Abstractions: [`IdealizationMethod`](@ref), [`MethodOutput`](@ref)
+- Methods and outputs: [`MeanDeviationMethod`](@ref), [`MeanDeviationMethodOutput`](@ref); [`MikaMethod`](@ref), [`MikaMethodOutput`](@ref); [`NaiveMethod`](@ref), [`NaiveMethodOutput`](@ref); [`MDLMethod`](@ref), [`MDLMethodOutput`](@ref); [`DeepChannelMethod`](@ref), [`DeepChannelMethodOutput`](@ref)
+- Analysis helpers: [`HistPeakAnalysis`](@ref), [`ThresholdWidth`](@ref), [`Noise`](@ref), [`Point`](@ref), [`Line`](@ref)
+- Evaluation aggregates: [`MeanError`](@ref)
 
 ## Selected API (canonical names)
 
@@ -82,7 +82,7 @@ To add a new idealization method:
   - `naive_method(x::Vector{Float32}, t::Float32, m::NaiveMethod) -> NaiveMethodOutput`
   - `mdl_method(x::Vector{Float32}, t::Float32, m::MDLMethod) -> MDLMethodOutput`
   - `deep_channel_method(x::Vector{Float32}, t::Float32, m::DeepChannelMethod) -> DeepChannelMethodOutput`
-  - `method_function(::IdealizationMethod)` → returns the concrete callable for `calculate_method`
+  - `method_function(::IdealizationMethod)` → returns the concrete callable for [`calculate_method`](@ref)
   - `calculate_method(x::Vector{Float32}, m::IdealizationMethod, t::Float32) -> MethodOutput`
 
 - Evaluation and reconstruction:

@@ -6,10 +6,10 @@ using HypothesisTests
 """
     method_function(::MikaMethod) -> Function
 
-Return the algorithm function associated with a `MikaMethod`.
+Return the algorithm function associated with a [`MikaMethod`](@ref).
 
 This allows code like `calculate_method(data, m, Δt)` to work for any
-`IdealizationMethod` subtype without changing the executor logic.
+[`IdealizationMethod`](@ref) subtype without changing the executor logic.
 """
 method_function(::MikaMethod) = mika_method
 
@@ -27,8 +27,8 @@ The field name indicating the index (e.g., `:pmax1_index`).
 The field name indicating the value (e.g., `:pmax1`).
 
 # Returns
-- `Point`  
-A `Point` instance where `x` is taken from `hist.edges` at the specified index,
+- [`Point`](@ref)  
+A [`Point`](@ref) instance where `x` is taken from `hist.edges` at the specified index,
 and `y` is the field value accessed from `hist`.
 
 # Description
@@ -51,7 +51,7 @@ end
 """
     line(point1::Point, point2::Point) -> Line
 
-Construct a `Line` (y = a*x + b) passing through two points.
+Construct a [`Line`](@ref) (y = a*x + b) passing through two points.
 
 # Arguments
 - `point1::Point`  
@@ -60,7 +60,7 @@ The first point `(x₁, y₁)` through which the line will pass.
 The second point `(x₂, y₂)` through which the line will pass.
 
 # Returns
-- `Line`  
+- [`Line`](@ref)  
 A line in slope-intercept form (`y = a*x + b`), where `a` is the slope and `b` is the intercept.
 
 # Description
@@ -88,7 +88,7 @@ Estimate breakpoints and dwell times in a time-stamped signal using a threshold 
 
 # Arguments
 - `data_with_times::Vector{Tuple{Float32, Float32}}`  
-Vector of `(time, value)` pairs for the signal, e.g. output from `combine_time_with_data`.
+Vector of `(time, value)` pairs for the signal, e.g. output from [`combine_time_with_data`](@ref).
 - `threshold::ThresholdWidth`  
 Threshold band object defining the central threshold and its lower/upper bounds.
 
@@ -240,7 +240,7 @@ Sampling interval in seconds.
 Parameters for the Mika method, including histogram bin count and threshold mixing factor.
 
 # Returns
-- `MikaMethodOutput`  
+- [`MikaMethodOutput`](@ref)  
 Comprehensive structure containing breakpoints, dwell times, idealized signal, noise statistics, and optimized thresholds.
 
 # Description
@@ -251,7 +251,7 @@ This method:
 4. Constructs the idealized signal alternating between two peak levels.
 5. Assesses noise and fits a normal distribution for MSE optimization.
 6. Iteratively adjusts (optimizes) the threshold to minimize noise MSE.
-7. Returns all outcomes in a `MikaMethodOutput` struct for further analysis or plotting.
+7. Returns all outcomes in a [`MikaMethodOutput`](@ref) struct for further analysis or plotting.
 
 # Example
 ```

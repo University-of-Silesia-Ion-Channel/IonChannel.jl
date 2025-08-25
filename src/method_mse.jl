@@ -271,9 +271,9 @@ computed over all matching datasets found in the `"data"` folder.
 - This function assumes the folder `"data"` exists and has the expected  
 subfolder structure required by [`read_all_file_paths`](@ref).
 - The helper [`calculate_method`](@ref) is responsible for interpreting  
-the `IdealizationMethod` instance and calling its stored method function.
+the [`IdealizationMethod`](@ref) instance and calling its stored method function.
 - The `"x"` and `"dwell times"` vectors are assumed to be aligned and compatible.
-- `calculate_mean_square_error` now returns a tuple; only the first element is used.
+- [`calculate_mean_square_error`](@ref) now returns a tuple; only the first element is used.
 
 # Example
 ```
@@ -316,7 +316,7 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
         if typeof(method_output) <: MikaMethodOutput
 			vals = sort(unique(method_output.idealized_data))
 			mapped = (method_output.idealized_data .== vals[2])
-			approx_idealization = Vector{Float32}(mapped)
+			approx_idealization = Vector{UInt8}(mapped)
 		else
 			approx_idealization = method_output.idealized_data
 		end

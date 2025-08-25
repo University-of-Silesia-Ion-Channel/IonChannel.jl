@@ -172,7 +172,7 @@ Analyze a probability histogram to find the indices and values of major peaks an
 A probability histogram (from `StatsBase.Histogram`), typically with normalized weights.
 
 # Returns
-- `HistPeakAnalysis`  
+- [`HistPeakAnalysis`](@ref)  
 A structure bundling bin edges, weights, indices and values for the two main peaks, the midpoint index, and the minimum value (trough) between the peaks.
 
 # Description
@@ -181,7 +181,7 @@ This function examines the provided histogram to determine the location and valu
 - The secondary maximum (`pmax2`)
 - The midpoint index between the two maxima
 - The minimum value (`pmin`) found between those peaks (used for thresholding)
-All results are packed into a `HistPeakAnalysis` struct for downstream use.
+All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.
 
 # Example
 data = randn(1000)
@@ -244,7 +244,7 @@ Result of peak analysis on a histogram, containing peak and minimum bin indices 
 Weighting parameter that adjusts the positions of threshold bounds between minimum and peak values.
 
 # Returns
-- `ThresholdWidth`  
+- [`ThresholdWidth`](@ref)  
 Structure detailing the central threshold and its lower (`x₁`) and upper (`x₂`) bounds.
 
 # Description

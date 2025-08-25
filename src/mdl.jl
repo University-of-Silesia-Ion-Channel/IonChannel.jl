@@ -311,7 +311,7 @@ filtering spurious changes by step size, and constructing the idealized state se
 Pipeline:
 1. Iterative breakpoint search:
    - Starting from the full range, repeatedly detect single or double breakpoints
-     (via `detect_breaks_mdl`) within the current segment, respecting `c_method.min_seg`.
+     (via [`detect_breaks_mdl`](@ref)) within the current segment, respecting `c_method.min_seg`.
    - Accept and insert any proposed breakpoints that pass the MDL test.
 2. Sort and consolidate all local breakpoints.
 3. Filter by jump magnitude:
@@ -320,8 +320,8 @@ Pipeline:
 4. Convert sample indices to time:
    - `breakpoints = final_breaks .* Δt`.
 5. Determine initial state using a histogram-derived threshold:
-   - Estimate amplitude threshold via `histogram_calculator`, `calculate_probability_histogram`,
-     and `analyze_histogram_peaks`, and set initial state to 0 if `data[1] < threshold`, else 1.
+   - Estimate amplitude threshold via [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref),
+     and [`analyze_histogram_peaks`](@ref), and set initial state to 0 if `data[1] < threshold`, else 1.
 6. Build per-sample idealized sequence by alternating states across `final_breaks`.
 7. Compute dwell times as `[breakpoints[1]; diff(breakpoints)]`.
 
@@ -334,8 +334,8 @@ Returns:
 - MDLMethodOutput: Contains `breakpoints` (Float32 times), `dwell_times_approx`, and `idealized_data` (UInt8 states).
 
 Notes:
-- Expects the following helpers in scope: `histogram_calculator`, `calculate_probability_histogram`,
-  and `analyze_histogram_peaks` returning an object with fields `edges` and `pmin_index`.
+- Expects the following helpers in scope: [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref),
+  and [`analyze_histogram_peaks`](@ref) returning an object with fields `edges` and `pmin_index`.
 - State alternation assumes a two-state model (0/1) switching at each retained breakpoint.
 - If `final_breaks` is empty, ensure calling code handles empty dwell times accordingly.
 """
@@ -406,7 +406,7 @@ end
 """
     method_function(::MDLMethod)
 
-Dispatch helper that maps an `MDLMethod` configuration to its execution function.
+Dispatch helper that maps an [`MDLMethod`](@ref) configuration to its execution function.
 
 Returns a callable with signature `(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) -> MDLMethodOutput`,
 typically used in higher-level code to select the appropriate idealization routine based on method type.

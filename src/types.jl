@@ -4,13 +4,13 @@ using PyCall
 
 Abstract supertype for all idealization method parameter types.
 
-Each concrete subtype of `IdealizationMethod` stores only the parameters
+Each concrete subtype of [`IdealizationMethod`](@ref) stores only the parameters
 specific to that method. The associated computation algorithm is defined
 separately and linked to the subtype via a `method(::YourMethodType)` function.
 
 # Usage
 To implement a new method:
-1. Create a new struct subtype of `IdealizationMethod` that stores parameters.
+1. Create a new struct subtype of [`IdealizationMethod`](@ref) that stores parameters.
 2. Write the algorithm function:
 
     my_algorithm(data::Vector{Float32}, Δt::Float32, m::MyMethodType) -> Vector{Float32}
@@ -24,7 +24,7 @@ abstract type IdealizationMethod end
 """
     MethodOutput
 
-Abstract supertype for all output types produced by idealization methods in IonChannel.
+Abstract supertype for all output types produced by idealization methods in [`IonChannel`](@ref).
 
 All result types describing the outcome of an idealization algorithm—such as dwell times, breakpoints, noise metrics, and other analysis products—should subtype this.
 
@@ -58,7 +58,7 @@ The height (weight) of the minimum (trough) between the two main peaks.
 The bin index of the minimum (trough) between the two main peaks.
 
 # Description
-`HistPeakAnalysis` encapsulates detailed information about the histogram peaks and troughs necessary for further analysis such as threshold determination.
+[`HistPeakAnalysis`](@ref) encapsulates detailed information about the histogram peaks and troughs necessary for further analysis such as threshold determination.
 
 It is typically produced by the function [`analyze_histogram_peaks`](@ref).
 
@@ -95,7 +95,7 @@ The lower bound of the threshold band.
 The upper bound of the threshold band.
 
 # Description
-`ThresholdWidth` encapsulates the main threshold and its bounds within which the signal values are considered for state transition analysis.
+[`ThresholdWidth`](@ref) encapsulates the main threshold and its bounds within which the signal values are considered for state transition analysis.
 
 It is typically computed during histogram-based threshold optimization and used for breakpoint detection.
 
@@ -167,7 +167,7 @@ The mean of the noise vector.
 The standard deviation of the noise vector.
 
 # Description
-`Noise` encapsulates statistical information about deviation of the observed data from an idealized signal, useful for assessing fit quality and noise properties.
+[`Noise`](@ref) encapsulates statistical information about deviation of the observed data from an idealized signal, useful for assessing fit quality and noise properties.
 
 ---
 
@@ -183,7 +183,7 @@ Accessor function returning the standard deviation of the noise.
 ---
 
 `noise(data::Vector{Float32}, idealized_values::Vector{Float32}) -> Noise`  
-Computes and returns a `Noise` object representing the noise between raw data and idealized values.
+Computes and returns a [`Noise`](@ref) object representing the noise between raw data and idealized values.
 
 # Arguments
 - `data::Vector{Float32}`  
@@ -192,8 +192,8 @@ The original data vector.
 The idealized or reconstructed data vector.
 
 # Returns
-- `Noise`  
-A `Noise` struct containing the residual vector and its statistical properties.
+- [`Noise`](@ref)  
+A [`Noise`](@ref) struct containing the residual vector and its statistical properties.
 
 # Example
 ```
@@ -210,12 +210,29 @@ mutable struct Noise
     σ::Float32
 end
 
-noise_data(noise) = noise.ξ
-μ(noise) = noise.μ
-σ(noise) = noise.σ
 """
-Computes and returns a `Noise` object representing the noise between raw data and idealized values.
-See more in the `Noise` struct documentation.
+    noise_data(noise::Noise) -> Vector{Float32}
+
+Accessor function returning the raw noise vector `ξ`.
+"""
+noise_data(noise::Noise) = noise.ξ
+"""
+    μ(noise::Noise) -> Float32
+
+Accessor function returning the mean of the noise.
+"""    
+μ(noise::Noise) = noise.μ
+
+"""
+    σ(noise::Noise) -> Float32
+    
+Accessor function returning the standard deviation of the noise.
+"""
+σ(noise::Noise) = noise.σ
+
+"""
+Computes and returns a [`Noise`](@ref) object representing the noise between raw data and idealized values.
+See more in the [`Noise`](@ref) struct documentation.
 """
 function noise(data::Vector{Float32}, idealized_values::Vector{Float32}) :: Noise
     ξ = data .- idealized_values
@@ -241,7 +258,7 @@ Estimated dwell times (in seconds) between detected transitions.
 The reconstructed idealized signal corresponding to the original data.
 
 - `noise::Noise`  
-A `Noise` struct capturing residuals between the original and idealized data and associated statistics.
+A [`Noise`](@ref) struct capturing residuals between the original and idealized data and associated statistics.
 
 - `threshold::Float32`  
 The optimized threshold value used for state discrimination.
@@ -254,7 +271,7 @@ The mean squared error between the noise and its fitted normal distribution.
 
 # Description
 
-`MikaMethodOutput` bundles all significant outputs of the Mika idealization procedure, enabling comprehensive downstream analysis and visualization.
+[`MikaMethodOutput`](@ref) bundles all significant outputs of the Mika idealization procedure, enabling comprehensive downstream analysis and visualization.
 
 # Accessor Functions
 
@@ -312,7 +329,7 @@ The number of bins used in histogram computations during idealization.
 
 # Description
 
-`MikaMethod` stores parameters essential for controlling the thresholding and histogram binning in the Mika method. The associated algorithm is linked via `method_function(::MikaMethod)`.
+[`MikaMethod`](@ref) stores parameters essential for controlling the thresholding and histogram binning in the Mika method. The associated algorithm is linked via `method_function(::MikaMethod)`.
 
 # Example
 ```
@@ -335,7 +352,7 @@ Parameters for the *deviation-from-running-mean* idealization method.
 - `λ::Float32` - Threshold value above which a deviation from the mean indicates a state change.
 
 # Description
-`MeanDeviationMethod` stores only these two numeric parameters.
+[`MeanDeviationMethod`](@ref) stores only these two numeric parameters.
 The actual algorithm is implemented in [`deviation_from_mean_method`](@ref)
 and linked via:
 
@@ -357,14 +374,14 @@ end
 """
     δ(m::MeanDeviationMethod) -> Float32
 
-Return the `δ` (delta) parameter from the given `MeanDeviationMethod` instance.
+Return the `δ` (delta) parameter from the given [`MeanDeviationMethod`](@ref) instance.
 """
 δ(m::MeanDeviationMethod) = m.δ
 
 """
     λ(m::MeanDeviationMethod) -> Float32
 
-Return the `λ` (lambda) parameter from the given `MeanDeviationMethod` instance.
+Return the `λ` (lambda) parameter from the given [`MeanDeviationMethod`](@ref) instance.
 """
 λ(m::MeanDeviationMethod) = m.λ
 
@@ -429,7 +446,7 @@ accessed via `PyCall.PyObject`) that supports per-sample classification
 - Ensure PyCall is properly initialized and the Python environment includes all
   dependencies required by the model (e.g., TensorFlow/Keras or PyTorch).
 - Input preprocessing (e.g., scaling with `UnitRangeTransform` and reshaping to
-  `(N,1,1,1)`) is handled by `deep_channel_method`.
+  `(N,1,1,1)`) is handled by [`deep_channel_method`](@ref).
 - The model is expected to output a probability distribution over states for
   each sample; downstream code uses `argmax` to select the most likely class.
 """
@@ -459,7 +476,7 @@ per-sample idealized state sequence.
   interval used upstream (e.g., `Δt` in seconds or milliseconds).
 - `idealized_data` provides the full-resolution state assignment, while
   `dwell_times_approx` and `breakpoints` summarize state changes.
-- Designed to be returned by `deep_channel_method`.
+- Designed to be returned by [`deep_channel_method`](@ref).
 """
 struct DeepChannelMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
@@ -498,8 +515,8 @@ end
 """
     NaiveMethodOutput <: MethodOutput
 
-Container for outputs produced by the histogram-threshold–based idealization
-pipeline (`naive_method`).
+Container for outputs produced by the histogram-threshold-based idealization
+pipeline ([`naive_method`](@ref)).
 
 # Fields
 - `dwell_times_approx::Vector{Float32}`: Approximate durations spent in each
@@ -516,7 +533,7 @@ pipeline (`naive_method`).
   interval used upstream (e.g., `Δt`).
 - `idealized_data` provides the full-length state sequence, while
   `dwell_times_approx` and `breakpoints` summarize state changes.
-- Designed to be returned by `naive_method`.
+- Designed to be returned by [`naive_method`](@ref).
 """
 struct NaiveMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
@@ -616,7 +633,7 @@ sequence.
   interval used upstream (e.g., `Δt` in seconds or milliseconds).
 - `idealized_data` provides the full-resolution labeling, while
   `breakpoints` and `dwell_times_approx` summarize the segmentation.
-- Designed to be returned by an MDL idealization routine (e.g., `mdl_method`).
+- Designed to be returned by an MDL idealization routine (e.g., [`mdl_method`](@ref)).
 """
 struct MDLMethodOutput <: MethodOutput
     breakpoints::Vector{Float32}
