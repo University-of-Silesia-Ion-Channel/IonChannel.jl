@@ -124,17 +124,12 @@ module IonChannel
 # please refactor this code I beg you
   import Pkg
   Pkg.activate("../")
-  packages = ["StatsBase", "Distributions", "Plots", "Normalization"]
-  Pkg.add(packages)
 
 	ENV["PYTHON_JL_RUNTIME_PYTHON"] = Sys.which("python3")
 	ENV["PYTHON"] = Sys.which("python3")
   @info "Using Python at: $(ENV["PYTHON"])"
-	Pkg.add(["PyCall", "PlutoUI", "OpenSSL_jll", "HypothesisTests"])
 	Pkg.build("PyCall")
-	using PyCall
-	using OpenSSL_jll, PlutoUI, Plots
-
+  
   include("./types.jl")
   include("./read_data.jl")
   include("./auxiliary.jl")
