@@ -125,11 +125,11 @@ module IonChannel
   import Pkg
   Pkg.activate("../")
 
-	ENV["PYTHON_JL_RUNTIME_PYTHON"] = Sys.which("python3")
-	ENV["PYTHON"] = Sys.which("python3")
-  @info "Using Python at: $(ENV["PYTHON"])"
-	Pkg.build("PyCall")
-  
+	# ENV["PYTHON_JL_RUNTIME_PYTHON"] = Sys.which("python3")
+	# ENV["PYTHON"] = Sys.which("python3")
+  # @info "Using Python at: $(ENV["PYTHON"])"
+	# Pkg.build("PyCall")
+
   include("./types.jl")
   include("./read_data.jl")
   include("./auxiliary.jl")
