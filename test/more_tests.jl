@@ -58,12 +58,12 @@ end
     Δt = 0.001f0
 
     # Naive method
-    nm = IonChannel.NaiveMethod(UInt8(50))
+    nm = IonChannel.NaiveMethod(UInt16(50))
     nout = IonChannel.naive_method(signal, Δt, nm)
     @test isa(nout, IonChannel.NaiveMethodOutput)
 
     # Mika method with small number of bins to keep deterministic
-    mm = IonChannel.MikaMethod(UInt8(20))
+    mm = IonChannel.MikaMethod(UInt16(20))
     mout = IonChannel.mika_method(signal, Δt, mm)
     @test isa(mout, IonChannel.MikaMethodOutput)
     @test length(mout.idealized_data) == length(signal)
