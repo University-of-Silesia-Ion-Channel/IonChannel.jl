@@ -224,6 +224,10 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}
         # change the previous point to the next one
         previous_point = point
     end
+    if isempty(breakpoints)
+        dwell_times = Float32[]
+        return breakpoints, dwell_times
+    end
     dwell_times = append!([breakpoints[1]], diff(breakpoints))
     breakpoints, dwell_times
 end

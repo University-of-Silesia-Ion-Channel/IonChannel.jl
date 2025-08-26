@@ -18,7 +18,7 @@ using StatsBase
 
     # analyze peaks: expect two peaks roughly around the two clusters
     analysis = IonChannel.analyze_histogram_peaks(prob)
-    @test isa(analysis, HistPeakAnalysis)
+    @test isa(analysis,IonChannel.HistPeakAnalysis)
     @test analysis.pmax1_index != analysis.pmax2_index
 
     # threshold width for small epsilon should be between min and max edges
