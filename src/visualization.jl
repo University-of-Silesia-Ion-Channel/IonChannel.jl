@@ -22,7 +22,7 @@ Sampling interval (seconds).
 Plots the time series `"x"` for the duration `[T_left, T_right]` as a green line.  
 - **Red vertical lines:** Mark true breakpoints, based on cumulative dwell times from `T_left` to `T_right`.
 - **Blue vertical lines:** Indicate approximated breakpoints detected by the idealization method, up to from `T_left` to `T_right`.
-- **Threshold line:** If the `method_output` is a [`MikaMethodOutput`](@ref), overlays a horizontal line at the chosen threshold.
+- **Threshold band:** If the `method_output` is a [`MikaMethodOutput`](@ref), overlays 2 horizontal lines representing thresold `x₁` and `x₂`.
 
 Line opacities scale with the interval length.  
 Additional features—such as band limits or idealized data overlay—can be enabled by uncommenting code sections.
@@ -58,7 +58,8 @@ function show_approx_on_plot(data::Dict{String, Vector{Float32}}, method_output:
     vline!(breakpoints_to_draw; alpha=alpha_val, label="Exact", color="red")
 
     if typeof(method_output) <: MikaMethodOutput
-        hline!([method_output.threshold], label="threshold", lw=2)
+        hline!([method_output.threshold.x₁], label="x₁", lw=2)
+        hline!([method_output.threshold.x₂], label="x₂", lw=2)
     end
 
     vline!(approx_breakpoints_to_draw, label="Approximated", alpha=alpha_val, color="blue")
@@ -139,7 +140,7 @@ Plot the data histogram and visualize threshold-related features and detected pe
 - `data_histogram::Histogram`  
 The histogram of original data, typically created with [`histogram_calculator`](@ref).
 - `histogram_analysis::HistPeakAnalysis`  
-Results from peak and trough detection, providing bin indices for annotated visualization.
+Results from peak and minimum detection, providing bin indices for annotated visualization.
 - `method_output::MikaMethodOutput`  
 Output of the Mika method containing the chosen threshold index and other results.
 
@@ -147,8 +148,8 @@ Output of the Mika method containing the chosen threshold index and other result
 Creates a bar plot of the data histogram and overlays vertical lines to indicate:
 - the primary and secondary peaks,
 - the histogram midpoint,
-- the selected threshold location,
-- and the minimum (trough) between peaks.
+- the selected threshold band location,
+- and the minimum between peaks.
 
 This visualization helps evaluate the effectiveness and placement of the threshold and key features used by the idealization algorithm.
 
@@ -162,13 +163,13 @@ function show_threshold_on_plot(data_histogram::Histogram, histogram_analysis::H
     vline!([histogram_analysis.edges[histogram_analysis.pmax1_index]], label="pmax1")
     vline!([histogram_analysis.edges[histogram_analysis.pmax2_index]], label="pmax2")
     vline!([histogram_analysis.edges[histogram_analysis.midpoint]], label="half")
-    vline!([histogram_analysis.edges[method_output.threshold_index]], label="threshold", lw=3)
+    vline!([method_output.threshold.threshold_centre], label="threshold centre", lw=3)
     vline!([histogram_analysis.edges[histogram_analysis.pmin_index]], label="minimum")
     # r1 = collect(prob_hist_edges_list[pmax1_index - 1]:0.1:prob_hist_edges_list[pmin_index + 2])
     # plot!(r1, line1[1].*r1 .+ line1[2], label="Line 1")
     # r2 = collect(prob_hist_edges_list[pmin_index-1]:0.1:prob_hist_edges_list[pmax2_index+1])
     # plot!(r2, line2[1].*r2 .+ line2[2], label="Line 2")
-    # vline!([x₁], label="x1", linewidth=2)
-    # vline!([x₂], label="x2", linewidth=2)
+    vline!([method_output.threshold.x₁], label="x1", linewidth=2)
+    vline!([method_output.threshold.x₂], label="x2", linewidth=2)
 end
 

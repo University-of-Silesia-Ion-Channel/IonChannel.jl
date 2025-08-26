@@ -111,6 +111,18 @@ function read_all_file_paths(data_folder::String) :: Tuple{String, Vector{String
     what_first_path, data_file_paths, dwell_times_file_paths
 end
 
+function create_paths_dictionary(data_paths, dwell_paths)
+    paths_dict = Dict(
+        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths),
+        "dwell times paths" => Dict{String, Vector{String}}(split(dwell_path, '/')[end-1] => [] for dwell_path in dwell_paths)
+    )
+	for voltage in keys(paths_dict["data paths"])
+		append!(paths_dict["data paths"][voltage], filter(!ismissing, collect(split(data_path, '/')[end-1] == voltage ? data_path : missing for data_path in data_paths)))
+		append!(paths_dict["dwell times paths"][voltage], filter(!ismissing, collect(split(dw_path, '/')[end-1] == voltage ? dw_path : missing for dw_path in dwell_paths)))
+	end
+    paths_dict
+end
+
 """
     get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size::UInt32=0) 
         -> Dict{String, Vector{Float32}}

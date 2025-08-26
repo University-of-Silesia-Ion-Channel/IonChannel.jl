@@ -1,6 +1,7 @@
 using Distributions
 using StatsBase
 using Markdown
+using DataFrames
 
 """
     calculate_mean_square_error(
@@ -231,7 +232,7 @@ function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_ide
 end
 
 """
-    mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Float32
+    mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
 
 Compute the **average mean squared error (MSE)** across multiple datasets,
 using a specified idealization method to approximate dwell times.
@@ -250,9 +251,12 @@ Number of data points to include in each dataset for MSE calculation.
 If `true`, prints detailed processing information for each dataset.
 
 # Returns
-- `Float32`:  
-The average MSE between actual dwell times and those estimated by `method`,
-computed over all matching datasets found in the `"data"` folder.
+- `Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}`:  
+    - A dictionary with keys `"errors"` and `"accuracies"`, each mapping to another dictionary where:
+        - Keys are voltage levels (as strings).
+        - Values are vectors of MSE or accuracy values for each dataset at that voltage.
+    - A dictionary mapping voltage levels to their mean accuracy across datasets.
+    - A dictionary mapping voltage levels to their mean MSE across datasets.
 
 # Description
 1. Uses [`read_all_file_paths`](@ref) to find all raw data and dwell time files.
@@ -283,14 +287,13 @@ avg_mse = mean_error(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
-function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: MeanError
-    # read all files
+function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
-    N = length(data_paths)
-    sum_mean_squared_error = 0.0
-    mean_squared_errors = []
-    sum_accuracy = 0.0
-    accuracies = []
+    data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)
+
+    table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
+    mean_error_dict = Dict{String, Float32}()
+    mean_accuracy_dict = Dict{String, Float32}()
     if verbose
         @info "$(what_first_file_path)"
     end
@@ -299,38 +302,92 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
 	    for line in eachline(what_first_file_path)
 	)
 
-    for i in 1:N
+    for voltage in keys(data_paths_dict["data paths"])
         if verbose
-            @info "Processing file $(data_paths[i])"
+            @info "Processing voltage $(voltage)"
         end
-        x, y = read_data(data_paths[i], dwell_times_paths[i])
-        data = get_specified_datapoints(x, y, Δt, data_size)
-        normalized_data = normalize_data(data)
-        data["x"] = normalized_data
-        method_output = calculate_method(normalized_data, method, Δt)
+        # mean_squared_errors[voltage] = Dict{String, Union{Vector{Float32}, Float32}}("errors" => Vector{Float32}([]), "mean error" => 0.0f0)
+        # accuracies[voltage] = Dict{String, Union{Vector{Float32}, Float32}}("accuracies" => Vector{Float32}([]), "mean accuracy" => 0.0f0)
+        # table["errors"] = Dict{String, Vector{Float32}}(voltage => Float32[])
+        # table["accuracies"] = Dict{String, Vector{Float32}}(voltage => Float32[])
+        N = length(data_paths_dict["data paths"][voltage])
+        temp_error = 0.0f0
+        temp_acc = 0.0f0
+        acc_table = Float32[]
+        errors_table = Float32[]
+        for i in 1:N
+            x, y = read_data(data_paths_dict["data paths"][voltage][i], data_paths_dict["dwell times paths"][voltage][i])
+            data = get_specified_datapoints(x, y, Δt, data_size)
+            normalized_data = normalize_data(data)
+            data["x"] = normalized_data
+            method_output = calculate_method(normalized_data, method, Δt)
 
-        mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
-        push!(mean_squared_errors, mse)
-
-        actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths[i], '/')[end], Δt)
-        if typeof(method_output) <: MikaMethodOutput
-			vals = sort(unique(method_output.idealized_data))
-			mapped = (method_output.idealized_data .== vals[2])
-			approx_idealization = Vector{UInt8}(mapped)
-		else
-			approx_idealization = method_output.idealized_data
-		end
-        acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
-        sum_accuracy += acc
-        push!(accuracies, acc)
-        if verbose
-            @info "Mean squared error: $mse"
-            @info "Accuracy of idealization: $acc"
+            mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
+            # push!(mean_squared_errors[voltage]["errors"], mse)
+            # push!(table["errors"][voltage], mse)
+            temp_error += mse
+            push!(errors_table, mse)
+            actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths_dict["data paths"][voltage][i], '/')[end], Δt)
+            if typeof(method_output) <: MikaMethodOutput
+                vals = sort(unique(method_output.idealized_data))
+                mapped = (method_output.idealized_data .== vals[2])
+                approx_idealization = Vector{UInt8}(mapped)
+            else
+                approx_idealization = method_output.idealized_data
+            end
+            acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
+            push!(acc_table, acc)
+            # push!(accuracies[voltage]["accuracies"], acc)
+            # push!(table["accuracies"][voltage], acc)
+            temp_acc += acc
         end
-        sum_mean_squared_error += mse
+        table["errors"][voltage] = errors_table
+        table["accuracies"][voltage] = acc_table
+        mean_error_dict[voltage] = temp_error / N
+        mean_accuracy_dict[voltage] = temp_acc / N
+        # mean_squared_errors[voltage]["mean error"] = temp_error / N
+        # accuracies[voltage]["mean accuracy"] = temp_acc / N
     end
-    mean_squared_error = sum_mean_squared_error / N
-    mean_accuracy = sum_accuracy / N
-    MeanError(mean_squared_error, mean_accuracy, mean_squared_errors, accuracies)
+
+    table, mean_accuracy_dict, mean_error_dict
 end
 
+"""
+    dicts_to_dataframes(table::Dict{String,Dict{String,Vector{Float32}}},
+                        mean_accuracy_dict::Dict{String,Float32},
+                        mean_error_dict::Dict{String,Float32}) -> Tuple{DataFrame,DataFrame,DataFrame}
+
+Return (df_errors, df_accuracies, df_summary) as DataFrames.
+
+- df_errors: columns per voltage with MSE values (missing padded).
+- df_accuracies: columns per voltage with accuracy values (missing padded).
+- df_summary: one row per voltage with mean_error and mean_accuracy.
+"""
+function dicts_to_dataframes(table::Dict{String,Dict{String,Vector{Float32}}},
+                                mean_accuracy_dict::Dict{String,Float32},
+                                mean_error_dict::Dict{String,Float32})::Tuple{DataFrame,DataFrame,DataFrame}
+
+    # Helper to convert Dict{String,Vector{Float32}} -> DataFrame with missing padding
+    function vector_dict_to_df(d::Dict{String,Vector{Float32}})
+        # Determine maximum length among all vectors
+        maxlen = isempty(d) ? 0 : maximum(length.(values(d)))
+        # Build a NamedTuple of columns with element type Union{Missing,Float32}
+        cols = (; (Symbol(k) => Union{Missing,Float32}[ i <= length(v) ? v[i] : missing
+                                                for i in 1:maxlen ]
+                    for (k, v) in d)...)
+        DataFrame(cols)
+    end
+
+    df_errors = vector_dict_to_df(table["errors"])
+    df_accuracies = vector_dict_to_df(table["accuracies"])
+
+    # Align voltages using keys of mean_error_dict as the canonical set
+    voltages = collect(keys(mean_error_dict))
+    df_summary = DataFrame(
+        voltage = voltages,
+        mean_error = Float32[ mean_error_dict[v] for v in voltages ],
+        mean_accuracy = Float32[ get(mean_accuracy_dict, v, NaN32) for v in voltages ],
+    )
+
+    return df_errors, df_accuracies, df_summary
+end

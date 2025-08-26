@@ -260,11 +260,8 @@ The reconstructed idealized signal corresponding to the original data.
 - `noise::Noise`  
 A [`Noise`](@ref) struct capturing residuals between the original and idealized data and associated statistics.
 
-- `threshold::Float32`  
-The optimized threshold value used for state discrimination.
-
-- `threshold_index::Int`  
-The index within histogram bins corresponding to the selected threshold.
+- `threshold::ThresholdWidth`  
+The threshold and its bounds used for state transition detection.
 
 - `noise_mse::Float32`  
 The mean squared error between the noise and its fitted normal distribution.
@@ -282,7 +279,6 @@ Each field has a corresponding accessor function for convenient retrieval:
 - `idealized_data(optimized_data::MikaMethodOutput)`  
 - `noise(optimized_data::MikaMethodOutput)`  
 - `threshold(optimized_data::MikaMethodOutput)`  
-- `threshold_index(optimized_data::MikaMethodOutput)`  
 - `noise_mse(optimized_data::MikaMethodOutput)`  
 
 These allow accessing parts of the output without field syntax.
@@ -290,7 +286,7 @@ These allow accessing parts of the output without field syntax.
 # Example
 
 ```
-result = mika_method(data, Δt, MikaMethod(0.1, 120))
+result = mika_method(data, Δt, MikaMethod(120))
 
 println("Threshold used: ", threshold(result))
 println("Number of breakpoints detected: ", length(breakpoints(result)))
@@ -301,8 +297,7 @@ struct MikaMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     idealized_data::Vector{Float32}
     noise::Noise
-    threshold::Float32
-    threshold_index::Int
+    threshold::ThresholdWidth
     noise_mse::Float32
 end
 
@@ -311,7 +306,6 @@ dwell_times_approx(optimized_data::MikaMethodOutput) = optimized_data.dwell_time
 idealized_data(optimized_data::MikaMethodOutput) = optimized_data.idealized_data
 noise(optimized_data::MikaMethodOutput) = optimized_data.noise
 threshold(optimized_data::MikaMethodOutput) = optimized_data.threshold
-threshold_index(optimized_data::MikaMethodOutput) = optimized_data.threshold_index
 noise_mse(optimized_data::MikaMethodOutput) = optimized_data.noise_mse  
 
 """
@@ -320,9 +314,6 @@ noise_mse(optimized_data::MikaMethodOutput) = optimized_data.noise_mse
 Parameters and a method function for the Mika idealization method.
 
 # Fields
-
-- `ϵ::Float32`  
-A smoothing/noise parameter influencing threshold optimization.
 
 - `number_of_histogram_bins::UInt16`  
 The number of bins used in histogram computations during idealization.
@@ -333,12 +324,11 @@ The number of bins used in histogram computations during idealization.
 
 # Example
 ```
-m = MikaMethod(0.1, 100)
+m = MikaMethod(100)
 result = calculate_method(data, m, Δt)
 ```
 """
 mutable struct MikaMethod <: IdealizationMethod
-    ϵ::Float32
     number_of_histogram_bins::UInt16
 end
 
@@ -487,7 +477,7 @@ end
 """
     NaiveMethod <: IdealizationMethod
 
-Configuration for a simple histogram-threshold–based idealization method.
+Configuration for a simple histogram-threshold-based idealization method.
 
 This method estimates a decision threshold from the empirical distribution of
 signal amplitudes (via histogram analysis) and detects state transitions when
@@ -496,7 +486,7 @@ the signal crosses that threshold.
 # Fields
 - `number_of_histogram_bins::UInt16`: Number of bins to use when building the
   amplitude histogram. A larger value can capture finer structure but may be
-  noisier; typical ranges are 50–200 depending on data length and noise.
+  noisier; typical ranges are 50-200 depending on data length and noise.
 
 # Usage
 - Pass an instance to `naive_method(data, Δt, method)` to produce:

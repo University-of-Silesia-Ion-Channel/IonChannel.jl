@@ -81,6 +81,61 @@ function line(point1::Point, point2::Point)::Line
 end
 
 """
+    get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) -> ThresholdWidth
+
+Compute the threshold band used for state discrimination in idealization, based on histogram analysis and a weighting parameter.
+
+# Arguments
+- `hist_analysis::HistPeakAnalysis`  
+Result of peak analysis on a histogram, containing peak and minimum bin indices and values.
+- `ϵ::Float32`  
+Weighting parameter that adjusts the positions of threshold bounds between minimum and peak values.
+
+# Returns
+- [`ThresholdWidth`](@ref)  
+Structure detailing the central threshold and its lower (`x₁`) and upper (`x₂`) bounds.
+
+# Description
+Calculates a threshold band (region between two values) by linearly interpolating between the minimum and each peak, weighted by ϵ. This band is used to classify points in the signal for idealization methods.
+
+# Example
+```
+thr_width = get_threshold_width(hist_analysis, 0.1)
+println("Threshold center: ", thr_width.threshold_centre)
+println("Lower bound: ", thr_width.x₁)
+println("Upper bound: ", thr_width.x₂)
+```
+"""
+function get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) :: ThresholdWidth
+    max1_val, max2_val, min_val = hist_analysis.edges[hist_analysis.pmax1_index], hist_analysis.edges[hist_analysis.pmax2_index], hist_analysis.edges[hist_analysis.pmin_index]
+    point_max1 = point(hist_analysis, :pmax1_index, :pmax1)
+	point_min = point(hist_analysis, :pmin_index, :pmin)
+	point_max2 = point(hist_analysis, :pmax2_index, :pmax2)
+    line_max1 = line(point_max1, point_min) # line from max1 to min
+    line_max2 = line(point_max2, point_min) # line from max2 to min
+	
+	s1 = abs(line_max1.a)
+    s2 = abs(line_max2.a)
+
+    # Fallback to symmetric if slopes are unusable
+    denom = s1 + s2
+    if !isfinite(s1) || !isfinite(s2) || denom == 0
+        ε1 = ϵ
+        ε2 = ϵ
+    else
+        # weight gentler side (smaller slope) more
+        w1 = s1 / denom
+        w2 = s2 / denom
+        ε1 = ϵ * Float32(w1)
+        ε2 = ϵ * Float32(w2)
+    end
+
+    x₁ = (1 - ε1) * min_val + ε1 * max1_val
+    x₂ = (1 - ε2) * min_val + ε2 * max2_val
+	ThresholdWidth(min_val, x₁, x₂)
+end;
+
+"""
     calculate_approximation(data_with_times::Vector{Tuple{Float32, Float32}}, threshold::ThresholdWidth) 
         -> Tuple{Vector{Float32}, Vector{Float32}}
 
@@ -169,6 +224,10 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}
         # change the previous point to the next one
         previous_point = point
     end
+    if isempty(breakpoints)
+        dwell_times = Float32[time(data_with_times[end]) - time(data_with_times[1])]
+        return breakpoints, dwell_times
+    end
     dwell_times = append!([breakpoints[1]], diff(breakpoints))
     breakpoints, dwell_times
 end
@@ -237,7 +296,7 @@ The original raw signal to be idealized.
 - `Δt::Float32`  
 Sampling interval in seconds.
 - `method::MikaMethod`  
-Parameters for the Mika method, including histogram bin count and threshold mixing factor.
+Parameters for the Mika method, including histogram bin count.
 
 # Returns
 - [`MikaMethodOutput`](@ref)  
@@ -268,15 +327,15 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     # calculate initial mse
     data_with_times = combine_time_with_data(data, Δt)
 
-    threshold_width = get_threshold_width(hist_analysis, method.ϵ)
+    threshold::ThresholdWidth = get_threshold_width(hist_analysis, Float32(0.0))
 
-    breakpoints, dwell_times_approx = calculate_approximation(data_with_times, threshold_width)
+    breakpoints, dwell_times_approx = calculate_approximation(data_with_times, threshold)
 
     idealized_data = idealize_data(data, dwell_times_approx, hist_analysis, Δt)
     best_idealized_data = idealized_data
 
-    threshold = threshold_width.threshold_centre
-    threshold_index = hist_analysis.pmin_index
+    # threshold = threshold_width.threshold_centre
+    # threshold_index = hist_analysis.pmin_index
 
     noise_ = noise(data, idealized_data)
     best_noise = noise_
@@ -289,7 +348,6 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     initial_idealized_data = idealized_data
     initial_noise = best_noise
     initial_threshold = threshold
-    initial_threshold_index = threshold_index
     initial_best_noise_mse = best_noise_mse
 
     max_left = sum(hist_analysis.weights[hist_analysis.pmax1_index:hist_analysis.pmin_index])
@@ -297,22 +355,24 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
 
     step = max_left > max_right ? -1 : 1
 
+    best_threshold = threshold
+    best_centre_index = hist_analysis.pmin_index
     # optimize the threshold
     previous_noise_mse = noise_mse
     # @info "Initial noise MSE: $noise_mse"
     for min_ind in hist_analysis.pmin_index+step:step:hist_analysis.pmax1_index
         hist_analysis.pmin_index = min_ind
-        threshold_width = get_threshold_width(hist_analysis, method.ϵ)
+        threshold = get_threshold_width(hist_analysis, Float32(0.0))
 
-        temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold_width)
+        temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold)
 
         idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
         noise_ = noise(data, idealized_data)
         noise_mse = noise_test(noise_)
 
         if noise_mse > best_noise_mse
-            threshold = hist_analysis.edges[min_ind]
-            threshold_index = min_ind
+            best_centre_index = min_ind
+            best_threshold = threshold
             best_noise = noise_
             previous_noise_mse = noise_mse
             best_noise_mse = noise_mse
@@ -321,9 +381,42 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
         end
     end
 
-    if threshold_index == hist_analysis.pmax1_index
-        return MikaMethodOutput(initial_breakpoints, initial_dwell_times_approx, initial_idealized_data, initial_noise, initial_threshold, initial_threshold_index, initial_best_noise_mse)
+    # checking only centre because other values are the same
+    if best_threshold.threshold_centre == threshold.threshold_centre
+        best_centre_index = hist_analysis.pmin_index
+        best_threshold = initial_threshold
+        breakpoints = initial_breakpoints
+        dwell_times_approx = initial_dwell_times_approx
+        best_idealized_data = initial_idealized_data
+        best_noise = initial_noise
+        best_noise_mse = initial_best_noise_mse
+        # return MikaMethodOutput(initial_breakpoints, initial_dwell_times_approx, initial_idealized_data, initial_noise, initial_threshold, initial_threshold_index, initial_best_noise_mse)
     end
 
-    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, threshold, threshold_index, best_noise_mse)
+    # MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, threshold, threshold_index, best_noise_mse)
+    hist_analysis.pmin_index = best_centre_index
+    # @info "Starting fine-tuning of ϵ"
+    # @info "Best noise MSE after histogram edge optimization: $best_noise_mse at threshold centre = $(best_threshold.threshold_centre)"
+    for ϵ::Float32 in 0.01:0.01:0.2
+        
+        threshold = get_threshold_width(hist_analysis, ϵ)
+        temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold)
+
+        idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
+        noise_ = noise(data, idealized_data)
+        noise_mse = noise_test(noise_)
+        # @info "Noise MSE: $noise_mse at ϵ = $ϵ"
+        if noise_mse > best_noise_mse
+            # @info "New best noise MSE: $noise_mse at ϵ = $ϵ"
+            # threshold = hist_analysis.edges[min_ind]
+            # threshold_index = min_ind
+            best_threshold = threshold
+            best_noise = noise_
+            previous_noise_mse = noise_mse
+            best_noise_mse = noise_mse
+            best_idealized_data = idealized_data
+            breakpoints, dwell_times_approx = temp_breakpoints, temp_dwell_times_approx
+        end
+    end
+    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse)
 end
