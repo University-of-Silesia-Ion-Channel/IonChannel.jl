@@ -232,7 +232,7 @@ function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_ide
 end
 
 """
-    mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Float32
+    mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
 
 Compute the **average mean squared error (MSE)** across multiple datasets,
 using a specified idealization method to approximate dwell times.
@@ -251,9 +251,12 @@ Number of data points to include in each dataset for MSE calculation.
 If `true`, prints detailed processing information for each dataset.
 
 # Returns
-- `Float32`:  
-The average MSE between actual dwell times and those estimated by `method`,
-computed over all matching datasets found in the `"data"` folder.
+- `Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}`:  
+    - A dictionary with keys `"errors"` and `"accuracies"`, each mapping to another dictionary where:
+        - Keys are voltage levels (as strings).
+        - Values are vectors of MSE or accuracy values for each dataset at that voltage.
+    - A dictionary mapping voltage levels to their mean accuracy across datasets.
+    - A dictionary mapping voltage levels to their mean MSE across datasets.
 
 # Description
 1. Uses [`read_all_file_paths`](@ref) to find all raw data and dwell time files.
@@ -284,12 +287,9 @@ avg_mse = mean_error(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
-function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false)
+function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)
-
-    mean_squared_errors = Dict{String, Dict{String, Union{Vector{Float32}, Float32}}}([])
-    accuracies = Dict{String, Dict{String, Union{Vector{Float32}, Float32}}}([])
 
     table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
     mean_error_dict = Dict{String, Float32}()
@@ -348,14 +348,14 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
         # mean_squared_errors[voltage]["mean error"] = temp_error / N
         # accuracies[voltage]["mean accuracy"] = temp_acc / N
     end
-    # table, accuracies, mean_squared_errors
+
     table, mean_accuracy_dict, mean_error_dict
 end
 
 """
     dicts_to_dataframes(table::Dict{String,Dict{String,Vector{Float32}}},
                         mean_accuracy_dict::Dict{String,Float32},
-                        mean_error_dict::Dict{String,Float32})
+                        mean_error_dict::Dict{String,Float32}) -> Tuple{DataFrame,DataFrame,DataFrame}
 
 Return (df_errors, df_accuracies, df_summary) as DataFrames.
 
@@ -365,7 +365,7 @@ Return (df_errors, df_accuracies, df_summary) as DataFrames.
 """
 function dicts_to_dataframes(table::Dict{String,Dict{String,Vector{Float32}}},
                                 mean_accuracy_dict::Dict{String,Float32},
-                                mean_error_dict::Dict{String,Float32})
+                                mean_error_dict::Dict{String,Float32})::Tuple{DataFrame,DataFrame,DataFrame}
 
     # Helper to convert Dict{String,Vector{Float32}} -> DataFrame with missing padding
     function vector_dict_to_df(d::Dict{String,Vector{Float32}})

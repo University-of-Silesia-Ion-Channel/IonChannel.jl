@@ -292,7 +292,7 @@ The original raw signal to be idealized.
 - `Δt::Float32`  
 Sampling interval in seconds.
 - `method::MikaMethod`  
-Parameters for the Mika method, including histogram bin count and threshold mixing factor.
+Parameters for the Mika method, including histogram bin count.
 
 # Returns
 - [`MikaMethodOutput`](@ref)  
@@ -416,4 +416,3 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     end
     MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse)
 end
-

@@ -109,7 +109,7 @@ x, y = read_data("trace.txt", "dwell.txt")
 
 t = 1e-4f0
 xnorm = normalize_data(Dict("x" => x))
-params = MikaMethod(0.1f0, UInt16(120))
+params = MikaMethod(UInt16(120))
 result = calculate_method(xnorm, params, t)
 
 show_approx_on_plot(Dict("x"=>x, "dwell times"=>y), result, 0.5f0, 0.9f0, t)

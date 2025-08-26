@@ -22,7 +22,7 @@ Sampling interval (seconds).
 Plots the time series `"x"` for the duration `[T_left, T_right]` as a green line.  
 - **Red vertical lines:** Mark true breakpoints, based on cumulative dwell times from `T_left` to `T_right`.
 - **Blue vertical lines:** Indicate approximated breakpoints detected by the idealization method, up to from `T_left` to `T_right`.
-- **Threshold line:** If the `method_output` is a [`MikaMethodOutput`](@ref), overlays a horizontal line at the chosen threshold.
+- **Threshold band:** If the `method_output` is a [`MikaMethodOutput`](@ref), overlays 2 horizontal lines representing thresold `x₁` and `x₂`.
 
 Line opacities scale with the interval length.  
 Additional features—such as band limits or idealized data overlay—can be enabled by uncommenting code sections.
@@ -140,7 +140,7 @@ Plot the data histogram and visualize threshold-related features and detected pe
 - `data_histogram::Histogram`  
 The histogram of original data, typically created with [`histogram_calculator`](@ref).
 - `histogram_analysis::HistPeakAnalysis`  
-Results from peak and trough detection, providing bin indices for annotated visualization.
+Results from peak and minimum detection, providing bin indices for annotated visualization.
 - `method_output::MikaMethodOutput`  
 Output of the Mika method containing the chosen threshold index and other results.
 
@@ -148,8 +148,8 @@ Output of the Mika method containing the chosen threshold index and other result
 Creates a bar plot of the data histogram and overlays vertical lines to indicate:
 - the primary and secondary peaks,
 - the histogram midpoint,
-- the selected threshold location,
-- and the minimum (trough) between peaks.
+- the selected threshold band location,
+- and the minimum between peaks.
 
 This visualization helps evaluate the effectiveness and placement of the threshold and key features used by the idealization algorithm.
 
