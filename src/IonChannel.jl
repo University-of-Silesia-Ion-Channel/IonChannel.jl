@@ -198,6 +198,8 @@ module IonChannel
     stepstat_mdl,
     MDLMethod,
     MDLMethodOutput,
-    mdl_method
+    mdl_method,
+    create_paths_dictionary,
+    dicts_to_dataframes
 
 end

@@ -23,7 +23,8 @@ begin
 	using PyCall, Plots
 	import Pkg
 	Pkg.activate(".")
-	using PlutoUI
+	Pkg.add("DataFrames")
+	using PlutoUI, DataFrames
 end
 
 # ╔═╡ 91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -279,17 +280,21 @@ MDL minimum segments $(@bind min_seg Slider(1:300, default=300, show_value=true)
 
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
 # methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-methods = [DeepChannelMethod(model), MDLMethod(min_seg, threshold, 100), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
+methods = [MikaMethod(100), DeepChannelMethod(model), MDLMethod(min_seg, threshold, 100), MeanDeviationMethod(0.0, 1.0), NaiveMethod(100)]
 
 # ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
 begin
 	error_outputs = []
 	for method in methods
 		@info "using $(method)"
-		push!(error_outputs, mean_error(method, Δt, UInt32(225000), true))
+		m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
+		push!(error_outputs, dicts_to_dataframes(m_table, m_acc, m_error))
 	end
 	error_outputs
 end
+
+# ╔═╡ 5f23c96a-bc79-421d-b0b1-9b95bd8335b2
+error_outputs[1][3]
 
 # ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
 begin
@@ -353,6 +358,7 @@ method = MDLMethod(min_seg, threshold, 100)
 # ╠═1a6b9ad6-6d73-4313-a291-c79d345bdbc5
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═5f23c96a-bc79-421d-b0b1-9b95bd8335b2
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953

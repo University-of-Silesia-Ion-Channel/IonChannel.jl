@@ -58,7 +58,8 @@ function show_approx_on_plot(data::Dict{String, Vector{Float32}}, method_output:
     vline!(breakpoints_to_draw; alpha=alpha_val, label="Exact", color="red")
 
     if typeof(method_output) <: MikaMethodOutput
-        hline!([method_output.threshold], label="threshold", lw=2)
+        hline!([method_output.threshold.x₁], label="x₁", lw=2)
+        hline!([method_output.threshold.x₂], label="x₂", lw=2)
     end
 
     vline!(approx_breakpoints_to_draw, label="Approximated", alpha=alpha_val, color="blue")
@@ -162,13 +163,13 @@ function show_threshold_on_plot(data_histogram::Histogram, histogram_analysis::H
     vline!([histogram_analysis.edges[histogram_analysis.pmax1_index]], label="pmax1")
     vline!([histogram_analysis.edges[histogram_analysis.pmax2_index]], label="pmax2")
     vline!([histogram_analysis.edges[histogram_analysis.midpoint]], label="half")
-    vline!([histogram_analysis.edges[method_output.threshold_index]], label="threshold", lw=3)
+    vline!([method_output.threshold.threshold_centre], label="threshold centre", lw=3)
     vline!([histogram_analysis.edges[histogram_analysis.pmin_index]], label="minimum")
     # r1 = collect(prob_hist_edges_list[pmax1_index - 1]:0.1:prob_hist_edges_list[pmin_index + 2])
     # plot!(r1, line1[1].*r1 .+ line1[2], label="Line 1")
     # r2 = collect(prob_hist_edges_list[pmin_index-1]:0.1:prob_hist_edges_list[pmax2_index+1])
     # plot!(r2, line2[1].*r2 .+ line2[2], label="Line 2")
-    # vline!([x₁], label="x1", linewidth=2)
-    # vline!([x₂], label="x2", linewidth=2)
+    vline!([method_output.threshold.x₁], label="x1", linewidth=2)
+    vline!([method_output.threshold.x₂], label="x2", linewidth=2)
 end
 

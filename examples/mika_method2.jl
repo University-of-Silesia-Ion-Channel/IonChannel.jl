@@ -180,18 +180,25 @@ md"""
 ## Step 3: Calculating dwell times using the minimum threshold
 """
 
-# ╔═╡ 8928f413-52cc-4c1a-8b34-f3e75e0e030d
-# ╠═╡ disabled = true
-#=╠═╡
-ϵ = 0.0
-  ╠═╡ =#
+# ╔═╡ edd6c669-4a93-4da9-bd6d-17553bac79c4
+data_folder_path = pwd() * "/$(data_folder)"
 
-# ╔═╡ c7b53fe7-4e49-4822-99a3-9bc3f04618dd
+# ╔═╡ c20208f8-f5c6-4d51-9111-e634bc7410a3
 md"""
-ϵ (The larger the noise the larger the ϵ and vice versa) 
-
-$(@bind ϵ Slider(0.0:0.01:1; default=0.0, show_value=true))
+Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folder_path)))
 """
+
+# ╔═╡ 39e8b080-5909-4402-a5ac-804c1105eb13
+begin
+	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
+	what_first_dict = Dict(
+	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    for line in eachline(what_fitst_file_path)
+	)
+end
+
+# ╔═╡ 894bc0db-42d6-4e35-80e3-051fff301762
+actual_idealized_data = actual_idealize_data(data, what_first_dict, data_file, Δt)
 
 # ╔═╡ 2f98854f-902f-42d7-8d7a-4e045cf4b6ff
 begin
@@ -218,13 +225,10 @@ md"""
 
 # ╔═╡ 3329d47a-f758-4d6e-84bc-dab7ee93b786
 begin
-	method = MikaMethod(ϵ, bins)
+	method = MikaMethod(bins)
 	optimized_data = calculate_method(normalized_data, method, Δt)
 	# method_function(method)
 end
-
-# ╔═╡ 6ff04a66-a473-4e65-9f12-45485e4764a4
-noise_test(optimized_data.noise)
 
 # ╔═╡ 900280c6-f872-475f-90c2-3f73c812241b
 md"""
@@ -253,11 +257,6 @@ begin
 end
 
 # ╔═╡ 597c023d-e915-4846-bfd8-407e309c3852
-md"""
-Mean squared error $(mean²error)
-"""
-
-# ╔═╡ 89c354f9-341d-41d0-8e3c-c254003c37b7
 md"""
 Mean squared error $(mean²error)
 """
@@ -314,13 +313,10 @@ plot_idealization_representation(data, optimized_data, T_left, T_right, Δt)
 # ╔═╡ dd0870d6-f5a4-4127-998e-5e150e020535
 show_approx_on_plot(data, optimized_data, T_left, T_right, Δt)
 
-# ╔═╡ 32d0372c-772c-493d-9eb2-d57869ffb745
-n = noise(optimized_data)
-
 # ╔═╡ 8d96a05f-f1a1-4f80-a2ef-b81ad6c504ba
 # ╠═╡ disabled = true
 #=╠═╡
-mean_error(method, Δt, UInt32(225000), true)
+m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
   ╠═╡ =#
 
 # ╔═╡ Cell order:
@@ -355,10 +351,10 @@ mean_error(method, Δt, UInt32(225000), true)
 # ╟─25f0f4a8-c40c-4113-913c-df5d13768cc5
 # ╠═69bbd9b5-d5c4-4318-a2bc-912efc7b3bdc
 # ╟─e1f85d37-c06b-4ffc-94de-fdd0726d6529
-# ╠═8928f413-52cc-4c1a-8b34-f3e75e0e030d
-# ╟─c7b53fe7-4e49-4822-99a3-9bc3f04618dd
-# ╟─89c354f9-341d-41d0-8e3c-c254003c37b7
-# ╠═6ff04a66-a473-4e65-9f12-45485e4764a4
+# ╠═edd6c669-4a93-4da9-bd6d-17553bac79c4
+# ╠═c20208f8-f5c6-4d51-9111-e634bc7410a3
+# ╠═39e8b080-5909-4402-a5ac-804c1105eb13
+# ╠═894bc0db-42d6-4e35-80e3-051fff301762
 # ╠═2f98854f-902f-42d7-8d7a-4e045cf4b6ff
 # ╠═3dee373c-abfc-4a9f-9944-62f37fd7a7dc
 # ╟─5f38a022-197d-4919-858e-e4afddd04c74
@@ -380,5 +376,4 @@ mean_error(method, Δt, UInt32(225000), true)
 # ╟─025a18f7-6e37-4724-851c-7e9d2c3755be
 # ╠═39bfa301-3259-496f-89b3-d0b38c793e3b
 # ╠═dd0870d6-f5a4-4127-998e-5e150e020535
-# ╠═32d0372c-772c-493d-9eb2-d57869ffb745
 # ╠═8d96a05f-f1a1-4f80-a2ef-b81ad6c504ba

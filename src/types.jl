@@ -301,8 +301,7 @@ struct MikaMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     idealized_data::Vector{Float32}
     noise::Noise
-    threshold::Float32
-    threshold_index::Int
+    threshold::ThresholdWidth
     noise_mse::Float32
 end
 
@@ -338,7 +337,6 @@ result = calculate_method(data, m, Δt)
 ```
 """
 mutable struct MikaMethod <: IdealizationMethod
-    ϵ::Float32
     number_of_histogram_bins::UInt16
 end
 

@@ -233,39 +233,6 @@ function analyze_histogram_peaks(prob_hist::Histogram) :: HistPeakAnalysis
 end
 
 """
-    get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) -> ThresholdWidth
-
-Compute the threshold band used for state discrimination in idealization, based on histogram analysis and a weighting parameter.
-
-# Arguments
-- `hist_analysis::HistPeakAnalysis`  
-Result of peak analysis on a histogram, containing peak and minimum bin indices and values.
-- `ϵ::Float32`  
-Weighting parameter that adjusts the positions of threshold bounds between minimum and peak values.
-
-# Returns
-- [`ThresholdWidth`](@ref)  
-Structure detailing the central threshold and its lower (`x₁`) and upper (`x₂`) bounds.
-
-# Description
-Calculates a threshold band (region between two values) by linearly interpolating between the minimum and each peak, weighted by ϵ. This band is used to classify points in the signal for idealization methods.
-
-# Example
-```
-thr_width = get_threshold_width(hist_analysis, 0.1)
-println("Threshold center: ", thr_width.threshold_centre)
-println("Lower bound: ", thr_width.x₁)
-println("Upper bound: ", thr_width.x₂)
-```
-"""
-function get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) :: ThresholdWidth
-    max1_val, max2_val, min_val = hist_analysis.edges[hist_analysis.pmax1_index], hist_analysis.edges[hist_analysis.pmax2_index], hist_analysis.edges[hist_analysis.pmin_index]
-    x₁ = (min_val * (1-ϵ) + max1_val * ϵ)
-    x₂ = (max2_val * ϵ + min_val * (1-ϵ))
-    ThresholdWidth(min_val, x₁, x₂)
-end;
-
-"""
     calculate_method(data::Vector{Float32}, c_method::IdealizationMethod, Δt::Float32)
 
 Run the dwell-time estimation algorithm associated with the given method type.
