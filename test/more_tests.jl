@@ -29,7 +29,7 @@ using Random
 end
 
 @testset "get_specified_datapoints" begin
-    x = Float32[1.0,2.0,3.0,4.0]
+    x = Float32[1.0, 2.0, 3.0, 4.0]
     y = Float32[0.1, 0.1, 0.1, 0.1]
     data = IonChannel.get_specified_datapoints(x, y, 0.1f0, UInt32(2))
     @test length(data["x"]) == 2
@@ -53,7 +53,7 @@ end
     for i in 1:4
         v = (i % 2 == 0) ? 1.0f0 : 0.0f0
         # longer segments (20 samples) with small noise to guarantee threshold crossings
-        append!(signal, v .+ 0.01f0*randn(Float32, 20))
+        append!(signal, v .+ 0.01f0 * randn(Float32, 20))
     end
     Δt = 0.001f0
 
@@ -63,7 +63,7 @@ end
     @test isa(nout, IonChannel.NaiveMethodOutput)
 
     # Mika method with small number of bins to keep deterministic
-    mm = IonChannel.MikaMethod(0.05f0, UInt8(20))
+    mm = IonChannel.MikaMethod(UInt8(20))
     mout = IonChannel.mika_method(signal, Δt, mm)
     @test isa(mout, IonChannel.MikaMethodOutput)
     @test length(mout.idealized_data) == length(signal)
