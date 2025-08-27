@@ -11,4 +11,5 @@ Test.@testset "IonChannel tests" begin
     include("histogram_tests.jl")
     include("noise_tests.jl")
     include("more_tests.jl")
+    include("deep_channel_tests.jl")
 end
