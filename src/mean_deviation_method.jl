@@ -17,7 +17,7 @@ Estimate dwell times by detecting deviations from a running mean.
 # Arguments
 - `data::Vector{Float32}` - The (usually normalized) signal to analyse.
 - `Δt::Float32` - Sampling interval in seconds.
-- `m::MeanDeviationMethod` - Parameters container; provides `m.δ` and `m.λ`.
+- `m::MeanDeviationMethod` - Parameters container; provides `m.δ`.
 
 # Returns
 - `Vector{Float32}` - Estimated dwell times in seconds.
@@ -27,7 +27,7 @@ Estimate dwell times by detecting deviations from a running mean.
 2. For each new sample:
 - If *not* in "different state" mode, update the running mean.
 - Compute `abs(sample - mean) - m.δ`.
-- If above `m.λ`, trigger a state change and record dwell segment length.
+- If above `λ`, trigger a state change and record dwell segment length.
 - Otherwise, continue counting the current dwell segment.
 3. Return the list of dwell segment durations.
 
@@ -35,7 +35,7 @@ Estimate dwell times by detecting deviations from a running mean.
 ```
 signal = [0.0, 0.1, 0.2, 1.5, 1.6, 1.7, 0.2, 0.1, 0.05]
 
-m = MeanDeviationMethod(0.05, 0.5)
+m = MeanDeviationMethod(Float32(0.0))
 
 Δt = 0.1 # 100 ms sampling interval
 
@@ -48,9 +48,18 @@ println(dwell_times_est) # e.g., [0.3, 0.3, 0.3]
 - Produces only complete dwell segments; last partial segment is not appended.
 - Works best on normalized or detrended signals to remove baseline drift.
 - `δ(c_method)` suppresses detection of very small fluctuations.
-- `λ(c_method)` controls the sensitivity: smaller values detect more frequent changes.
+- λ controls the sensitivity: smaller values detect more frequent changes.
 """
 function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) :: MeanDeviationMethodOutput
+    
+    # specyfying the λ from histogram analysis so λ is a fraction of a distance between most common currents
+    hist = histogram_calculator(data, UInt16(100))
+	prob_hist = calculate_probability_histogram(hist)
+	analysis = analyze_histogram_peaks(prob_hist)
+    
+    # λ calculated as a half of distance between peak values
+    λ = abs(analysis.edges[analysis.pmax2_index] - analysis.edges[analysis.pmax1_index]) / 2
+
     temporary_dwell_time = 1
     different_state_than_mean = false
 
@@ -74,7 +83,7 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
         deviation = abs(data[t] - mean_t) - δ(c_method)
         
         # Step 3: Check for change
-        if deviation > λ(c_method)
+        if deviation > λ
             if different_state_than_mean
                 temporary_dwell_time += 1
             else

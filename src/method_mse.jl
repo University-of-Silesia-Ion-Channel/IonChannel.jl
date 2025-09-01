@@ -225,7 +225,9 @@ Compute the accuracy of an approximate idealization compared to the ground-truth
 """
 function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_idealization::Vector{UInt8}) :: Float32
     # Calculate the accuracy as the proportion of matching states
-    if actual_idealization[1] != approx_idealization[1]
+    # If there is a flip on the second value, change the output (for better accuracy of MeanDeviationMethod)
+    # because method needs a few values to start idealizing
+    if actual_idealization[2] != approx_idealization[2]
         approx_idealization = 1 .- approx_idealization
     end
 	sum(actual_idealization .== approx_idealization) / length(approx_idealization)

@@ -339,7 +339,6 @@ Parameters for the *deviation-from-running-mean* idealization method.
 
 # Fields
 - `δ::Float32` - Deviation offset subtracted from the absolute deviation before thresholding.
-- `λ::Float32` - Threshold value above which a deviation from the mean indicates a state change.
 
 # Description
 [`MeanDeviationMethod`](@ref) stores only these two numeric parameters.
@@ -349,16 +348,14 @@ and linked via:
     method(::MeanDeviationMethod) = deviation_from_mean_method
 
 # Example
-```m = MeanDeviationMethod(0.05, 0.5)
+```m = MeanDeviationMethod(Float32(0.0))
 
 println(method_function(m)) # shows the stored function
-println(δ(m)) # 0.05
-println(λ(m)) # 0.5
+println(δ(m)) # 0.00
 ```
 """
 mutable struct MeanDeviationMethod <: IdealizationMethod
     δ::Float32
-    λ::Float32
 end
 
 """
@@ -367,13 +364,6 @@ end
 Return the `δ` (delta) parameter from the given [`MeanDeviationMethod`](@ref) instance.
 """
 δ(m::MeanDeviationMethod) = m.δ
-
-"""
-    λ(m::MeanDeviationMethod) -> Float32
-
-Return the `λ` (lambda) parameter from the given [`MeanDeviationMethod`](@ref) instance.
-"""
-λ(m::MeanDeviationMethod) = m.λ
 
 """
     MeanDeviationMethodOutput <: MethodOutput

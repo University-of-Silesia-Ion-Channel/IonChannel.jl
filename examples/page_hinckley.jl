@@ -220,6 +220,29 @@ md"""
 Mean squared error $(mean²error)
 """
 
+# ╔═╡ e5f04386-4d5b-409e-80cd-11c010a32ffe
+data_folder_path = pwd() * "/$(data_folder)"
+
+# ╔═╡ c56f0f6e-5264-4220-85a4-8f8fae6f5ffb
+md"""
+Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folder_path)))
+"""
+
+# ╔═╡ 511a0cd0-3e04-46cf-9a36-52dc7082dab2
+begin
+	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
+	what_first_dict = Dict(
+	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    for line in eachline(what_fitst_file_path)
+	)
+end
+
+# ╔═╡ 218d6150-eb02-4edb-84fa-0579bd539e5e
+begin
+	actual_idealized_data = actual_idealize_data(data, what_first_dict, data_file, Δt)
+	accuracy_of_idealization(actual_idealized_data, method_output.idealized_data)
+end
+
 # ╔═╡ 3b891242-97c6-4bfe-b4e2-bdb72639a688
 begin
 	plot(h_dwell_times; alpha=0.5, label="Exact")
@@ -237,6 +260,25 @@ Mean squared error $(mean²error)
 #=╠═╡
 mean_error(m, Δt, UInt32(225000), true)
   ╠═╡ =#
+
+# ╔═╡ f5e05604-8937-4464-9349-be372d62f467
+data["x"]
+
+# ╔═╡ 1d8c4a52-ed04-4035-a2be-887e457368bc
+begin
+	hist = histogram_calculator(data["x"], UInt16(100))
+	prob_hist = calculate_probability_histogram(hist)
+	analysis = analyze_histogram_peaks(prob_hist)
+end
+
+# ╔═╡ 680205e3-6e81-479f-a874-52818ffa2839
+abs(analysis.edges[analysis.pmax2_index] - analysis.edges[analysis.pmax1_index])
+
+# ╔═╡ bcac04d9-c138-49eb-b42c-a16f21461e43
+analysis.edges[analysis.pmax2_index]
+
+# ╔═╡ e56f88ea-b0d3-48eb-875b-a5ab964f10e2
+
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -276,6 +318,15 @@ mean_error(m, Δt, UInt32(225000), true)
 # ╠═4e60a773-afe6-4e84-8f31-d4e4c6342b02
 # ╠═f2ac42ea-ebb0-42c4-9269-dccdcd575e74
 # ╠═99f08837-ddcd-4eb3-9550-3aff9f257e8c
+# ╠═e5f04386-4d5b-409e-80cd-11c010a32ffe
+# ╠═c56f0f6e-5264-4220-85a4-8f8fae6f5ffb
+# ╠═511a0cd0-3e04-46cf-9a36-52dc7082dab2
+# ╠═218d6150-eb02-4edb-84fa-0579bd539e5e
 # ╠═3b891242-97c6-4bfe-b4e2-bdb72639a688
 # ╟─405c80b1-d86f-4139-acb8-57bb04513573
 # ╠═512bfa00-d3e9-4eae-8d40-403dd96d17c8
+# ╠═f5e05604-8937-4464-9349-be372d62f467
+# ╠═1d8c4a52-ed04-4035-a2be-887e457368bc
+# ╠═680205e3-6e81-479f-a874-52818ffa2839
+# ╠═bcac04d9-c138-49eb-b42c-a16f21461e43
+# ╠═e56f88ea-b0d3-48eb-875b-a5ab964f10e2
