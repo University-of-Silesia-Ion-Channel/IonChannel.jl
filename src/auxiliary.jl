@@ -184,6 +184,7 @@ This function examines the provided histogram to determine the location and valu
 All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.
 
 # Example
+```
 data = randn(1000)
 hist = fit(Histogram, data, 50)
 prob_hist = calculate_probability_histogram(hist)
