@@ -39,7 +39,7 @@ end
 @testset "deviation_from_mean_method behavior" begin
     # construct a simple step signal: 10 samples at 0, then 10 at 1
     step = vcat(fill(0.0f0, 10), fill(1.0f0, 10))
-    m = IonChannel.MeanDeviationMethod(0.0f0, 0.2f0)
+    m = IonChannel.MeanDeviationMethod(0.0f0)
     out = IonChannel.deviation_from_mean_method(step, 0.001f0, m)
     @test isa(out, IonChannel.MeanDeviationMethodOutput)
     # expect at least one dwell time detected (transition)
