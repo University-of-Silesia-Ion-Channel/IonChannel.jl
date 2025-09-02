@@ -619,4 +619,6 @@ struct MDLMethodOutput <: MethodOutput
     breakpoints::Vector{Float32}
     dwell_times_approx::Vector{Float32}
     idealized_data::Vector{UInt8}
+    unfiltered_breaks::Vector{Float32}
+    step_values::Vector{Float32}
 end

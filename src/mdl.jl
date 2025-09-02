@@ -339,7 +339,7 @@ Notes:
 - State alternation assumes a two-state model (0/1) switching at each retained breakpoint.
 - If `final_breaks` is empty, ensure calling code handles empty dwell times accordingly.
 """
-function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
+function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{UInt32}
     
 	start::UInt32 = 1
 	end_::UInt32 = length(data)
@@ -378,8 +378,15 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     end
     
     breaks = sort(BP_local)[1:end-1]
-	final_breaks, step_values = stepstat_mdl(data, breaks, c_method.threshold)
-	breakpoints = final_breaks .* Δt
+    breaks
+end
+
+function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
+    breaks_forward = mdl_method_part(data, c_method)
+    breaks_backward = (length(data) + 1) .- mdl_method_part(data[end:-1:1], c_method)
+    all_breaks::Vector{UInt32} = sort(unique(vcat(breaks_forward, breaks_backward)))
+    final_breaks, step_values = stepstat_mdl(data, all_breaks, c_method.threshold)
+	breakpoints::Vector{Float32} = final_breaks .* Δt
 
 	histogram_of_data = histogram_calculator(data, c_method.number_of_histogram_bins)
     prob_hist = calculate_probability_histogram(histogram_of_data)
@@ -400,7 +407,7 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
 	end
 	append!(idealized_data, fill(current_state, length(data) - prev_br_idx))
 	dwell_times = append!([breakpoints[1]], diff(breakpoints))
-	MDLMethodOutput(breakpoints, dwell_times, idealized_data)
+	MDLMethodOutput(breakpoints, dwell_times, idealized_data, all_breaks .* Δt, step_values)
 end
 
 """
