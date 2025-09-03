@@ -200,6 +200,7 @@ module IonChannel
     MDLMethodOutput,
     mdl_method,
     create_paths_dictionary,
-    dicts_to_dataframes
+    dicts_to_dataframes,
+    plot_mdl_timestep
 
 end

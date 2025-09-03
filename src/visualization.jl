@@ -66,6 +66,42 @@ function show_approx_on_plot(data::Dict{String, Vector{Float32}}, method_output:
 
 end
 
+function plot_mdl_timestep(data::Dict{String, Vector{Float32}}, method_output::MDLMethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
+    @assert T_left <= T_right "T_left must be less or equal to T_right"
+    @assert haskey(data, "x") "Data must contain 'x' key with raw signal data"
+    @assert haskey(data, "dwell times") "Data must contain 'dwell times' key with dwell segment durations"
+    @assert T_left >= 0 "T_left must be non-negative"
+
+    # T_diff = T_right - T_left
+    # N = Int(round(T_diff / Δt)) + 1
+    # time = range(T_left, T_right, length=N)
+
+    # N_left = max(1, Int(floor(T_left / Δt)) + 1)
+    # N_right = min(length(data["x"]), Int(ceil(T_right / Δt)) + 1)
+
+    # plot(time, data["x"][N_left:N_right], dpi=200, label="datapoints", color="green", seriestype=:line)
+
+    show_approx_on_plot(data, method_output, T_left, T_right, Δt)
+
+    approx_indices = findall(t -> t >= T_left && t <= T_right, method_output.unfiltered_breaks)
+	@info approx_indices
+	@info method_output.unfiltered_breaks[approx_indices]
+	approx_breakpoints_to_draw = vcat(T_left, method_output.unfiltered_breaks[approx_indices])
+	# vline!(approx_breakpoints_to_draw)
+
+	# Get the starts and ends of each step segment
+	segment_starts = approx_breakpoints_to_draw[1:end-1]
+	segment_ends = approx_breakpoints_to_draw[2:end]
+	values = method_output.step_values[1:end]
+	
+	# Create the stepped x and y arrays using comprehensions
+	X = vcat([collect(start:Δt:stop) for (start, stop) in zip(segment_starts, segment_ends)]...)
+	Y = vcat([fill(val, length(collect(start:Δt:stop))) for (start, stop, val) in zip(segment_starts, segment_ends, values)]...)
+	
+	# Now plot
+	plot!(X, Y, label="Step values", lw=2)    
+end
+
 
 """
     plot_idealization_representation(data::Dict{String, Vector{Float32}}, method_output::MethodOutput, T_left::Float32, T_right::Float32, Δt::Float32)
