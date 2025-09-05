@@ -130,7 +130,7 @@ function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: 
     end
     IQR::Float32 = iqr(data)
 	n::UInt32 = length(data)
-	bin_width::Float32 = 2.0 * (IQR/n^(1/3))
+	bin_width::Float32 = 2.0 * (IQR/∛n)
 	number_of_bins = round(Int, (max_data - min_data) / bin_width)
 	histogram_of_data = fit(Histogram, data, nbins= number_of_bins)
     histogram_of_data

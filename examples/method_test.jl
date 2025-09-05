@@ -24,7 +24,8 @@ begin
 	import Pkg
 	Pkg.activate(".")
 	Pkg.add("DataFrames")
-	using PlutoUI, DataFrames
+	Pkg.add("CSV")
+	using PlutoUI, DataFrames, CSV
 end
 
 # ╔═╡ 91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -107,17 +108,25 @@ end
 
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
 # methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-methods = [MDLMethod(UInt16(2), Float32(1.0), 100), MikaMethod(100), DeepChannelMethod(model), MeanDeviationMethod(1.0), NaiveMethod(100)]
+methods = [MDLMethod(UInt16(2), Float32(1.0), 100), MikaMethod(100), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod(100)]
 
 # ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
 begin
-	error_outputs = []
+	error_outputs = Dict([])
 	for method in methods
 		@info "using $(method)"
 		m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
-		push!(error_outputs, dicts_to_dataframes(m_table, m_acc, m_error))
+		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
 	end
 	error_outputs
+end
+
+# ╔═╡ fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
+for filename in keys(error_outputs)
+	# mkdir("../outp/$(filename)")
+	CSV.write("../outp/$(filename)/mean_errors.csv", error_outputs[filename][1])
+	CSV.write("../outp/$(filename)/mean_accuracies.csv", error_outputs[filename][2])
+	CSV.write("../outp/$(filename)/mean_accuracies_voltages.csv", error_outputs[filename][3])
 end
 
 # ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
@@ -355,6 +364,7 @@ method = MDLMethod(min_seg, threshold, 100)
 # ╠═1a6b9ad6-6d73-4313-a291-c79d345bdbc5
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953
