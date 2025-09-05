@@ -282,10 +282,11 @@ function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Floa
         start::UInt32 = i0 + skip
         stop::UInt32 = BP[k] - skip
         if stop < start
+            # @info "Stop: $stop < Start: $start, adjusting to single-point segment"
             start = BP[k]
             stop = BP[k]
         end
-        indices = start:stop+1
+        indices = start:stop
         if length(indices) == 0
             indices = Vector{UInt32}([BP[k]])
         end
@@ -388,7 +389,7 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     final_breaks, step_values = stepstat_mdl(data, all_breaks, c_method.threshold)
 	breakpoints::Vector{Float32} = final_breaks .* Δt
 
-	histogram_of_data = histogram_calculator(data, c_method.number_of_histogram_bins)
+	histogram_of_data = histogram_calculator(data)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
 

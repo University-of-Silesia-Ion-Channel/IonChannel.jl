@@ -321,7 +321,7 @@ println("Noise MSE: ", noise_mse(result))
 ```
 """
 function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::MikaMethodOutput
-    histogram_of_data = histogram_calculator(data, method.number_of_histogram_bins)
+    histogram_of_data = histogram_calculator(data)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
     # calculate initial mse

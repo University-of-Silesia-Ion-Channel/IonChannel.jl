@@ -119,11 +119,20 @@ println(hist.edges) # Bin edges
 - The bins are equally spaced between the minimum and maximum data values.
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
-function histogram_calculator(data::Vector{Float32}, bins::UInt16=UInt16(100)) :: Histogram
-    min_data = minimum(data)
-    max_data = maximum(data)
-    edges = range(min_data, stop=max_data, length=bins+1)
-    histogram_of_data = fit(Histogram, data, edges)
+function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: Histogram
+    extrema_of_data = extrema(data)
+    min_data = extrema_of_data[1]
+    max_data = extrema_of_data[2]
+    if nbins > 0
+        edges = range(min_data, stop=max_data, length=nbins+1)
+        histogram_of_data = fit(Histogram, data, edges)
+        return histogram_of_data
+    end
+    IQR::Float32 = iqr(data)
+	n::UInt32 = length(data)
+	bin_width::Float32 = 2.0 * (IQR/n^(1/3))
+	number_of_bins = round(Int, (max_data - min_data) / bin_width)
+	histogram_of_data = fit(Histogram, data, nbins= number_of_bins)
     histogram_of_data
 end
 
@@ -153,13 +162,14 @@ println(sum(prob_hist.weights)) # Should print 1.0 (or very close due to floatin
 ```
 """
 function calculate_probability_histogram(histogram::Histogram) :: Histogram
-    # Probabilities 
-    float_weights = Float32.(histogram.weights)
-    prob_weights = float_weights ./ (sum(float_weights))
+    # # Probabilities 
+    # float_weights = Float32.(histogram.weights)
+    # prob_weights = float_weights ./ (sum(float_weights))
 
-    # probability histogram
-    prob_hist = Histogram(histogram.edges, prob_weights)
-    prob_hist
+    # # probability histogram
+    # prob_hist = Histogram(histogram.edges, prob_weights)
+    # prob_hist
+    normalize(histogram, mode=:pdf)
 end
 
 """

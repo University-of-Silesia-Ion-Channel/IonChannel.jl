@@ -75,7 +75,7 @@ function naive_method(data::Vector{Float32}, Δt::Float32, method::NaiveMethod) 
     value(point) = point[2]
     time(point) = point[1]
 
-    histogram_of_data = histogram_calculator(data, method.number_of_histogram_bins)
+    histogram_of_data = histogram_calculator(data)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
 
