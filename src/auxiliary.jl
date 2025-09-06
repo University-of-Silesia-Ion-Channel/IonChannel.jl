@@ -86,13 +86,13 @@ function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :
 end
 
 """
-histogram_calculator(data::Vector{Float32}, bins::UInt16=100) -> Histogram
+histogram_calculator(data::Vector{Float32}, bins::Int16=-1) -> Histogram
 
-Compute a histogram of the given data vector with a specified number of bins.
+Compute a histogram of the given data vector with Freedman-Diaconis binning or a specified number of bins.
 
 # Arguments
 - `data::Vector{Float32}`: A vector of floating-point numbers representing the data to histogram.
-- `bins::UInt16` (optional, default=100): Number of bins to divide the data range into.
+- `bins::Int16` (optional, default=-1): Number of bins to divide the data range into. If set to -1, the Freedman-Diaconis rule is used to determine the optimal number of bins.
 
 # Returns
 - `Histogram`: A `Histogram` object (from `StatsBase.jl`) representing the frequency distribution
@@ -160,15 +160,11 @@ prob_hist = calculate_probability_histogram(hist)
 
 println(sum(prob_hist.weights)) # Should print 1.0 (or very close due to floating point)
 ```
+
+# Notes 
+- TO BE DEPRECATED in the future;
 """
 function calculate_probability_histogram(histogram::Histogram) :: Histogram
-    # # Probabilities 
-    # float_weights = Float32.(histogram.weights)
-    # prob_weights = float_weights ./ (sum(float_weights))
-
-    # # probability histogram
-    # prob_hist = Histogram(histogram.edges, prob_weights)
-    # prob_hist
     normalize(histogram, mode=:pdf)
 end
 
@@ -187,8 +183,10 @@ A structure bundling bin edges, weights, indices and values for the two main pea
 
 # Description
 This function examines the provided histogram to determine the location and values of:
-- The primary maximum (`pmax1`)
-- The secondary maximum (`pmax2`)
+- The left maximum (`pmax1`)
+- Its left index (`pmax1_index`)
+- The right maximum (`pmax2`)
+- Its right index (`pmax2_index`)
 - The midpoint index between the two maxima
 - The minimum value (`pmin`) found between those peaks (used for thresholding)
 All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.
@@ -200,8 +198,8 @@ hist = fit(Histogram, data, 50)
 prob_hist = calculate_probability_histogram(hist)
 analysis = analyze_histogram_peaks(prob_hist)
 
-println("First peak: ", analysis.pmax1, " at index ", analysis.pmax1_index)
-println("Second peak: ", analysis.pmax2, " at index ", analysis.pmax2_index)
+println("First peak: ", analysis.left_peak, " at index ", analysis.left_peak_index)
+println("Second peak: ", analysis.right_peak, " at index ", analysis.right_peak_index)
 println("Minimum between peaks: ", analysis.pmin, " at index ", analysis.pmin_index)
 ```
 """

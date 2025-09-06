@@ -108,7 +108,7 @@ end
 
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
 # methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-methods = [MDLMethod(UInt16(2), Float32(1.0), 100), MikaMethod(100), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod(100)]
+methods = [MDLMethod(UInt16(2), Float32(1.0)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
 
 # ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
 begin
@@ -327,16 +327,16 @@ end
 
 # ╔═╡ 0fa305bd-3398-4abc-a9e8-d347d1997c36
 md"""
-MDL threshold $(@bind threshold Slider(0.01:0.01:1.0, default=0.8, show_value=true))
+MDL threshold $(@bind threshold Slider(0.01:0.01:1.0, default=0.9, show_value=true))
 """
 
 # ╔═╡ c88f2283-9725-4996-ab54-745cf73e68b9
 md"""
-MDL minimum segments $(@bind min_seg Slider(1:300, default=300, show_value=true))
+MDL minimum segments $(@bind min_seg Slider(1:300, default=2, show_value=true))
 """
 
 # ╔═╡ 4bed656f-91f1-470c-b397-dc35d997a086
-method = MDLMethod(min_seg, threshold, 100)
+method = MDLMethod(min_seg, threshold)
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b

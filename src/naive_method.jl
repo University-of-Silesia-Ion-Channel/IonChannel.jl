@@ -18,8 +18,7 @@ This method:
 # Arguments
 - `data::Vector{Float32}`: The raw time-series trace to be idealized.
 - `Δt::Float32`: Sampling interval used to assign times to samples and compute dwell durations.
-- `method::NaiveMethod`: Configuration object that must provide `number_of_histogram_bins`
-  and supports the auxiliary functions used here (see Notes).
+- `method::NaiveMethod`: Placeholder for method. Histogram is computed using Freedman-Diaconis.
 
 # Returns
 - [`NaiveMethodOutput`](@ref): A struct with fields:
@@ -61,7 +60,7 @@ This method:
 ```
 trace = rand(Float32, 10_000)
 Δt = 1f-4
-method = NaiveMethod(number_of_histogram_bins = 100)
+method = NaiveMethod()
 
 result = naive_method(trace, Δt, method)
 

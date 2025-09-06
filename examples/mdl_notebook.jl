@@ -213,7 +213,7 @@ end
 n_bins = UInt16(bins)
 
 # ╔═╡ f2ac42ea-ebb0-42c4-9269-dccdcd575e74
-m = MDLMethod(min_seg, threshold, n_bins)
+m = MDLMethod(min_seg, threshold)
 
 # ╔═╡ 99f08837-ddcd-4eb3-9550-3aff9f257e8c
 begin

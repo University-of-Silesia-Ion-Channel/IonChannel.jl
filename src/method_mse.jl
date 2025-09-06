@@ -3,6 +3,43 @@ using StatsBase
 using Markdown
 using DataFrames
 
+
+"""
+    calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=100) -> (mse::Float32, hist_data::Histogram, hist_approx::Histogram)
+
+# Description
+This function calculates the histograms of both the actual and approximate dwell times using the specified number of
+bins. It then normalizes these histograms to represent probability density functions (PDFs) and computes the mean squared error (MSE) between the two distributions.
+The MSE is calculated as the average of the squared differences between the corresponding bin weights of the
+two histograms.
+
+# Arguments
+- `data::Dict{String, Vector{Float32}}`
+    A dictionary containing at least the key `"dwell times"` with a vector of actual dwell times.
+- `dwell_times_approx::Vector{Float32}`
+    A vector of approximate dwell times computed by an idealization method.
+- `dt_bins::UInt16=100`
+    Number of bins to use for histogram calculation (default is 100).
+
+# Returns
+- `mse::Float32`
+    The computed mean squared error between the two dwell time distributions.
+- `hist_data::Histogram`
+    The histogram of the actual dwell times.
+- `hist_approx::Histogram`
+    The histogram of the approximate dwell times.
+
+# Example
+```
+data = Dict("dwell times" => [0.1f0, 0.2f0, 0.15f0, 0.3f0])
+dwell_times_approx = [0.12f0, 0.18f0, 0.14f0, 0.28f0]
+mse, hist_data, hist_approx = calculate_mean_square_error(data, dwell_times_approx)
+println("Mean Squared Error: ", mse)
+```
+# See Also
+- [`histogram_calculator`](@ref)
+- [`normalize_data`](@ref)
+"""
 function calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=UInt16(100)) :: Tuple{Float32, Histogram, Histogram}
     h_dwell_times = normalize(histogram_calculator(data["dwell times"], Int16(dt_bins)), mode=:pdf)
     h_dwell_times_approx = normalize(histogram_calculator(dwell_times_approx, Int16(dt_bins)), mode=:pdf)
@@ -42,20 +79,16 @@ plot!(ideal_signal, label="Idealized signal")
 """
 function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32}, hist_analysis::HistPeakAnalysis, Δt::Float32) :: Vector{Float32}
     Imin = hist_analysis.edges[hist_analysis.pmin_index]
-    Imax1 = hist_analysis.edges[hist_analysis.pmax1_index]
-    Imax2 = hist_analysis.edges[hist_analysis.pmax2_index]
-    # Imax1, Imax2 = Imax1 > Imax2 ? (Imax2, Imax1) : (Imax1, Imax2)
-    # @info "Imin: $Imin, Imax1: $Imax1, Imax2: $Imax2"
-    # println("Imid: ", Imid, ", Imax1: ", Imax1, ", Imax2: ", Imax2)
-    # @info "First data value: $(data[1])"
-    idealized_value = data[1] < Imin ? Imax1 : Imax2
+    I_max_bottom = hist_analysis.edges[hist_analysis.left_peak_index]
+    I_max_top = hist_analysis.edges[hist_analysis.right_peak_index]
+    idealized_value = data[1] < Imin ? I_max_bottom : I_max_top
     # @info "Initial idealized value: $idealized_value"
     idealized_values = Vector{Float32}([])
     # println("Dwell times [1]: ", dwell_times_approx[1]/Δt)
     for dt in dwell_times_approx
         how_many = round(UInt16, dt/Δt)
         append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
-        idealized_value = idealized_value == Imax1 ? Imax2 : Imax1
+        idealized_value = idealized_value == I_max_bottom ? I_max_top : I_max_bottom
     end
 
     if length(idealized_values) > length(data)
@@ -252,10 +285,6 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
         if verbose
             @info "Processing voltage $(voltage)"
         end
-        # mean_squared_errors[voltage] = Dict{String, Union{Vector{Float32}, Float32}}("errors" => Vector{Float32}([]), "mean error" => 0.0f0)
-        # accuracies[voltage] = Dict{String, Union{Vector{Float32}, Float32}}("accuracies" => Vector{Float32}([]), "mean accuracy" => 0.0f0)
-        # table["errors"] = Dict{String, Vector{Float32}}(voltage => Float32[])
-        # table["accuracies"] = Dict{String, Vector{Float32}}(voltage => Float32[])
         N = length(data_paths_dict["data paths"][voltage])
         temp_error = 0.0f0
         temp_acc = 0.0f0
@@ -269,8 +298,6 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
             method_output = calculate_method(normalized_data, method, Δt)
 
             mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
-            # push!(mean_squared_errors[voltage]["errors"], mse)
-            # push!(table["errors"][voltage], mse)
             temp_error += mse
             push!(errors_table, mse)
             actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths_dict["data paths"][voltage][i], '/')[end], Δt)
@@ -283,16 +310,12 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
             end
             acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
             push!(acc_table, acc)
-            # push!(accuracies[voltage]["accuracies"], acc)
-            # push!(table["accuracies"][voltage], acc)
             temp_acc += acc
         end
         table["errors"][voltage] = errors_table
         table["accuracies"][voltage] = acc_table
         mean_error_dict[voltage] = temp_error / N
         mean_accuracy_dict[voltage] = temp_acc / N
-        # mean_squared_errors[voltage]["mean error"] = temp_error / N
-        # accuracies[voltage]["mean accuracy"] = temp_acc / N
     end
 
     table, mean_accuracy_dict, mean_error_dict
