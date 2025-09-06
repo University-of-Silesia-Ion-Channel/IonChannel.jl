@@ -24,7 +24,8 @@ begin
 	import Pkg
 	Pkg.activate(".")
 	Pkg.add("DataFrames")
-	using PlutoUI, DataFrames
+	Pkg.add("CSV")
+	using PlutoUI, DataFrames, CSV
 end
 
 # ╔═╡ 91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -89,7 +90,7 @@ Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folde
 begin
 	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
 	what_first_dict = Dict(
-	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
 	    for line in eachline(what_fitst_file_path)
 	)
 end
@@ -103,6 +104,29 @@ Choose model: $(@bind model_file Select(models))
 begin
 	keras = pyimport("tensorflow.keras")
 	model = keras.models.load_model(models_path * model_file)
+end
+
+# ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
+# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
+methods = [MDLMethod(UInt16(2), Float32(1.0)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
+
+# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
+begin
+	error_outputs = Dict([])
+	for method in methods
+		@info "using $(method)"
+		m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
+		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
+	end
+	error_outputs
+end
+
+# ╔═╡ fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
+for filename in keys(error_outputs)
+	# mkdir("../outp/$(filename)")
+	CSV.write("../outp/$(filename)/mean_errors.csv", error_outputs[filename][1])
+	CSV.write("../outp/$(filename)/mean_accuracies.csv", error_outputs[filename][2])
+	CSV.write("../outp/$(filename)/mean_accuracies_voltages.csv", error_outputs[filename][3])
 end
 
 # ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
@@ -171,6 +195,15 @@ begin
 	data["x"] = normalized_data
 end
 
+# ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
+begin
+	method_outputs = []
+	for method in methods
+		push!(method_outputs, calculate_method(data["x"], method, Δt))
+	end
+	method_outputs = Vector{MethodOutput}(method_outputs)
+end
+
 # ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
 function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
     @assert T_left <= T_right "N_left must be less or equal to N_right"
@@ -237,6 +270,30 @@ T_left = trunc(N_left * Δt; digits=4)
 # ╔═╡ f558c3bb-a336-455b-8397-8d8e8c6707c7
 T_right = trunc(N_right * Δt ;digits=4)
 
+# ╔═╡ dddebe29-e457-41f0-a548-6c31842b9953
+plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
+
+# ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
+begin
+	accuracy_table = []
+	for method in methods
+		@info "using $(method)"
+		method_output = calculate_method(data["x"], method, Δt)
+		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
+		if typeof(method_output) <: MikaMethodOutput
+			vals = sort(unique(method_output.idealized_data))
+			mapped = (method_output.idealized_data .== vals[2])
+			approx_idealization = Vector{UInt8}(mapped)
+		else
+			approx_idealization = method_output.idealized_data
+		end
+		push!(accuracy_table, accuracy_of_idealization(actual_idealization, approx_idealization))
+	end
+end
+
+# ╔═╡ 1d0925c7-032a-4c2c-a4d8-8e4a25547024
+accuracy_table
+
 # ╔═╡ bb51a8e8-0d34-437a-b541-10d721b9ebfe
 function plot_mdl(data::Dict{String, Vector{Float64}}, breakpoints::Vector{Float64}, T_left::Float64, T_right::Float64, Δt::Float64)
 	@assert T_left <= T_right "T_left must be less or equal to T_right"
@@ -270,64 +327,16 @@ end
 
 # ╔═╡ 0fa305bd-3398-4abc-a9e8-d347d1997c36
 md"""
-MDL threshold $(@bind threshold Slider(0.01:0.01:1.0, default=0.8, show_value=true))
+MDL threshold $(@bind threshold Slider(0.01:0.01:1.0, default=0.9, show_value=true))
 """
 
 # ╔═╡ c88f2283-9725-4996-ab54-745cf73e68b9
 md"""
-MDL minimum segments $(@bind min_seg Slider(1:300, default=300, show_value=true))
+MDL minimum segments $(@bind min_seg Slider(1:300, default=2, show_value=true))
 """
 
-# ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
-# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-methods = [MikaMethod(100), DeepChannelMethod(model), MDLMethod(min_seg, threshold, 100), MeanDeviationMethod(0.0, 1.0), NaiveMethod(100)]
-
-# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
-begin
-	error_outputs = []
-	for method in methods
-		@info "using $(method)"
-		m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
-		push!(error_outputs, dicts_to_dataframes(m_table, m_acc, m_error))
-	end
-	error_outputs
-end
-
-# ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
-begin
-	method_outputs = []
-	for method in methods
-		push!(method_outputs, calculate_method(data["x"], method, Δt))
-	end
-	method_outputs = Vector{MethodOutput}(method_outputs)
-end
-
-# ╔═╡ dddebe29-e457-41f0-a548-6c31842b9953
-plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
-
-# ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
-begin
-	accuracy_table = []
-	for method in methods
-		@info "using $(method)"
-		method_output = calculate_method(data["x"], method, Δt)
-		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
-		if typeof(method_output) <: MikaMethodOutput
-			vals = sort(unique(method_output.idealized_data))
-			mapped = (method_output.idealized_data .== vals[2])
-			approx_idealization = Vector{UInt8}(mapped)
-		else
-			approx_idealization = method_output.idealized_data
-		end
-		push!(accuracy_table, accuracy_of_idealization(actual_idealization, approx_idealization))
-	end
-end
-
-# ╔═╡ 1d0925c7-032a-4c2c-a4d8-8e4a25547024
-accuracy_table
-
 # ╔═╡ 4bed656f-91f1-470c-b397-dc35d997a086
-method = MDLMethod(min_seg, threshold, 100)
+method = MDLMethod(min_seg, threshold)
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -355,6 +364,7 @@ method = MDLMethod(min_seg, threshold, 100)
 # ╠═1a6b9ad6-6d73-4313-a291-c79d345bdbc5
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953

@@ -53,12 +53,12 @@ println(dwell_times_est) # e.g., [0.3, 0.3, 0.3]
 function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) :: MeanDeviationMethodOutput
     
     # specyfying the λ from histogram analysis so λ is a fraction of a distance between most common currents
-    hist = histogram_calculator(data, UInt16(100))
+    hist = histogram_calculator(data)
 	prob_hist = calculate_probability_histogram(hist)
 	analysis = analyze_histogram_peaks(prob_hist)
     
     # λ calculated as a half of distance between peak values
-    λ = abs(analysis.edges[analysis.pmax2_index] - analysis.edges[analysis.pmax1_index]) / 2
+    λ = abs(analysis.edges[analysis.right_peak_index] - analysis.edges[analysis.left_peak_index]) / 2
 
     temporary_dwell_time = 1
     different_state_than_mean = false

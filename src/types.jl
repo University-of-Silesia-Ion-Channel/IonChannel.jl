@@ -42,14 +42,14 @@ Structure holding the results of peak and trough analysis on a histogram.
 The bin edges of the histogram.
 - `weights::Vector{Float32}`  
 The counts or weights for each histogram bin.
-- `pmax1::Float32`  
-The height (weight) of the first (primary) maximum peak.
-- `pmax1_index::Int`  
-The bin index of the first maximum peak.
-- `pmax2::Float32`  
-The height (weight) of the second maximum peak.
-- `pmax2_index::Int`  
-The bin index of the second maximum peak.
+- `left_peak_val::Float32`  
+The height (weight) of the left maximum peak.
+- `left_peak_index::Int`  
+The bin index of the left maximum peak.
+- `right_peak_val::Float32`  
+The height (weight) of the right maximum peak.
+- `right_peak_index::Int`  
+The bin index of the right maximum peak.
 - `midpoint::Int`  
 The index representing the midpoint between the two main peaks.
 - `pmin::Float32`  
@@ -72,10 +72,10 @@ println("Minimum between peaks at bin ", hist_analysis.pmin_index)
 mutable struct HistPeakAnalysis
     edges::Vector{Float32}
     weights::Vector{Float32}
-    pmax1::Float32
-    pmax1_index::Int
-    pmax2::Float32
-    pmax2_index::Int
+    left_peak_val::Float32
+    left_peak_index::Int
+    right_peak_val::Float32
+    right_peak_index::Int
     midpoint::Int
     pmin::Float32
     pmin_index::Int
@@ -311,12 +311,7 @@ noise_mse(optimized_data::MikaMethodOutput) = optimized_data.noise_mse
 """
     MikaMethod <: IdealizationMethod
 
-Parameters and a method function for the Mika idealization method.
-
-# Fields
-
-- `number_of_histogram_bins::UInt16`  
-The number of bins used in histogram computations during idealization.
+Container for [`mika_method`](@ref) function for the Mika idealization method.
 
 # Description
 
@@ -324,13 +319,11 @@ The number of bins used in histogram computations during idealization.
 
 # Example
 ```
-m = MikaMethod(100)
+m = MikaMethod()
 result = calculate_method(data, m, Δt)
 ```
 """
-mutable struct MikaMethod <: IdealizationMethod
-    number_of_histogram_bins::UInt16
-end
+mutable struct MikaMethod <: IdealizationMethod end
 
 """
     MeanDeviationMethod <: IdealizationMethod
@@ -438,7 +431,7 @@ end
 """
     DeepChannelMethodOutput <: MethodOutput
 
-Container for the outputs of the deep learning–based idealization (DeepChannel method).
+Container for the outputs of the deep learning-based idealization (DeepChannel method).
 
 Holds the approximate dwell times, transition times (breakpoints), and the full
 per-sample idealized state sequence.
@@ -473,11 +466,6 @@ This method estimates a decision threshold from the empirical distribution of
 signal amplitudes (via histogram analysis) and detects state transitions when
 the signal crosses that threshold.
 
-# Fields
-- `number_of_histogram_bins::UInt16`: Number of bins to use when building the
-  amplitude histogram. A larger value can capture finer structure but may be
-  noisier; typical ranges are 50-200 depending on data length and noise.
-
 # Usage
 - Pass an instance to `naive_method(data, Δt, method)` to produce:
   - transition `breakpoints`,
@@ -485,12 +473,9 @@ the signal crosses that threshold.
   - per-sample binary `idealized_data` (0/1).
 
 # Notes
-- The chosen bin count influences the stability of the estimated threshold.
 - Works best for bimodal amplitude distributions with reasonably separated modes.
 """
-struct NaiveMethod <: IdealizationMethod
-    number_of_histogram_bins::UInt16
-end
+struct NaiveMethod <: IdealizationMethod end
 
 """
     NaiveMethodOutput <: MethodOutput
@@ -567,8 +552,6 @@ segments (penalizing over-segmentation) against how well segments explain the da
 - `threshold::Float32`: Amplitude or penalty threshold used within the MDL search/criteria.
   Its interpretation depends on the specific implementation (e.g., penalty weight, merge/split
   decision threshold).
-- `number_of_histogram_bins::UInt16`: Number of bins for any histogram-based auxiliary steps
-  (e.g., estimating noise statistics or amplitude modes) used by the MDL routine.
 
 # Usage
 - Construct and pass to an MDL-based idealization function, e.g.:
@@ -585,7 +568,6 @@ segments (penalizing over-segmentation) against how well segments explain the da
 struct MDLMethod <: IdealizationMethod
     min_seg::UInt16
     threshold::Float32
-    number_of_histogram_bins::UInt16
 end
 
 
@@ -619,4 +601,6 @@ struct MDLMethodOutput <: MethodOutput
     breakpoints::Vector{Float32}
     dwell_times_approx::Vector{Float32}
     idealized_data::Vector{UInt8}
+    unfiltered_breaks::Vector{Float32}
+    step_values::Vector{Float32}
 end
