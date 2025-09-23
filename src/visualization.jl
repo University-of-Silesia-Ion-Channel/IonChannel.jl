@@ -84,8 +84,8 @@ function plot_mdl_timestep(data::Dict{String, Vector{Float32}}, method_output::M
     show_approx_on_plot(data, method_output, T_left, T_right, Δt)
 
     approx_indices = findall(t -> t >= T_left && t <= T_right, method_output.unfiltered_breaks)
-	@info approx_indices
-	@info method_output.unfiltered_breaks[approx_indices]
+	# @info approx_indices
+	# @info method_output.unfiltered_breaks[approx_indices]
 	approx_breakpoints_to_draw = vcat(T_left, method_output.unfiltered_breaks[approx_indices])
 	# vline!(approx_breakpoints_to_draw)
 

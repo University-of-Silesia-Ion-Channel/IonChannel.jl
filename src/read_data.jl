@@ -9,7 +9,7 @@ Read numerical data from two text files and return them as vectors of `Float32`.
 # Arguments
 - `data_file_path::String`: Path to a text file containing numerical values (one per line)
 representing the primary data set.
-- `dwell_times_path::String`: Path to a text file containing numerical values (one per line)
+- `dwell_times_path::String` (optional, default=""): Path to a text file containing numerical values (one per line)
 corresponding to dwell times.
 
 # Returns
@@ -24,11 +24,27 @@ x, y = read_data("data.txt", "dwell_times.txt")
 
 Both files must contain one floating-point number per line, with optional whitespace.
 """
-function read_data(data_file_path::String, dwell_times_path::String) :: 
+function read_data(data_file_path::String, dwell_times_path::String="") :: 
 Tuple{Vector{Float32}, Vector{Float32}}
-    # reading data to RAM
-    x = open(data_file_path) do f; parse.(Float32, strip.(readlines(f))); end
-    y = open(dwell_times_path) do f; parse.(Float32, strip.(readlines(f))); end
+    # code snippet of loading picke using Python
+    pickle = pyimport("pickle")
+    builtins = pyimport("builtins")
+
+    function read_pickle_data(file_name)
+        f = builtins.open(file_name, "rb")
+        data = pickle.load(f, encoding="latin1")
+        f.close()
+        return data
+    end
+    if !isempty(dwell_times_path)
+        x = open(data_file_path) do f; parse.(Float32, strip.(readlines(f))); end
+        y = open(dwell_times_path) do f; parse.(Float32, strip.(readlines(f))); end
+    else
+        dt = read_pickle_data(data_file_path)
+        x = dt["x"]
+        bp = dt["dwell times"]
+        y = vcat([bp[1]], diff(bp))
+    end
     x, y
 end
 
@@ -82,44 +98,65 @@ println("Number of dwell time files: ", length(dwell_paths))
 - Assumes a specific directory and file naming convention.
 - File order consistency is crucial for correctly matching data with dwell times.
 """
-function read_all_file_paths(data_folder::String) :: Tuple{String, Vector{String}, Vector{String}}
+function read_all_file_paths(data_folder::String) :: Tuple{String, Dict{String, Vector{String}}, Dict{String, Vector{String}}}
+    # read all for txt data files
     voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/")
-    data_file_paths = []
-    dwell_times_file_paths = []
+    data_file_paths = Dict("txt" => [], "pickle" => [])
+    dwell_times_file_paths = Dict("txt" => [], "pickle" => [])
     for voltage in voltage_names
         path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/"
         path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/"
         data_filenames = cd(readdir, path_data)
-            clean_filenames = filter(
+        clean_filenames = filter(
             fname -> occursin(r"^ce\d+\.txt$", fname),
             data_filenames
         )
         for data_file in clean_filenames
             data_file_path = path_data * data_file
-            data_file_path = path_data * data_file
             dwell_times_file = split(data_file, '.')
             dwell_times_file[1] = dwell_times_file[1] * "dwell_timesy"
             dwell_times_file = join(dwell_times_file, '.')
             dwell_times_path = path_dwell_times * dwell_times_file
-            dwell_times_path = path_dwell_times * dwell_times_file
-            push!(data_file_paths, data_file_path)
-            push!(dwell_times_file_paths, dwell_times_path)
+            push!(data_file_paths["txt"], data_file_path)
+            push!(dwell_times_file_paths["txt"], dwell_times_path)
         end
     end
+
+    # read all for pickle data files
+    pickle_names = cd(readdir, pwd() * "/$(data_folder)/pickles")
+    for pickle in pickle_names
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle)/"
+		pickle_filenames = cd(readdir, path_data)
+		for pickle_file in pickle_filenames
+			data_file_path = path_data * pickle_file
+			push!(data_file_paths["pickle"], data_file_path)
+            # push!(dwell_times_file_paths, "")  # No corresponding dwell times file
+		end
+	end
+
     # what_first_file_name = cd(readdir, pwd() * "/$(data_folder)/")[3]
     what_first_path = pwd() * "/$(data_folder)/first.txt"
     what_first_path, data_file_paths, dwell_times_file_paths
 end
 
 function create_paths_dictionary(data_paths, dwell_paths)
-    paths_dict = Dict(
-        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths),
-        "dwell times paths" => Dict{String, Vector{String}}(split(dwell_path, '/')[end-1] => [] for dwell_path in dwell_paths)
+    paths_dict = Dict{String, Dict{String, Dict{String, Vector{String}}}}()
+    paths_dict_txt = Dict(
+        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths["txt"]),
+        "dwell times paths" => Dict{String, Vector{String}}(split(dwell_path, '/')[end-1] => [] for dwell_path in dwell_paths["txt"])
     )
-	for voltage in keys(paths_dict["data paths"])
-		append!(paths_dict["data paths"][voltage], filter(!ismissing, collect(split(data_path, '/')[end-1] == voltage ? data_path : missing for data_path in data_paths)))
-		append!(paths_dict["dwell times paths"][voltage], filter(!ismissing, collect(split(dw_path, '/')[end-1] == voltage ? dw_path : missing for dw_path in dwell_paths)))
+	for voltage in keys(paths_dict_txt["data paths"])
+		append!(paths_dict_txt["data paths"][voltage], filter(!ismissing, collect(split(data_path, '/')[end-1] == voltage ? data_path : missing for data_path in data_paths["txt"])))
+		append!(paths_dict_txt["dwell times paths"][voltage], filter(!ismissing, collect(split(dw_path, '/')[end-1] == voltage ? dw_path : missing for dw_path in dwell_paths["txt"])))
 	end
+    paths_dict["txt"] = paths_dict_txt
+    paths_dict_pickle = Dict(
+        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths["pickle"])
+    )
+    for type in keys(paths_dict_pickle["data paths"])
+        append!(paths_dict_pickle["data paths"][type], filter(!ismissing, collect(split(data_path, '/')[end-1] == type ? data_path : missing for data_path in data_paths["pickle"])))
+    end
+    paths_dict["pickle"] = paths_dict_pickle
     paths_dict
 end
 

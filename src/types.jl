@@ -589,6 +589,11 @@ sequence.
   dwell time usually equals the first breakpoint time).
 - `idealized_data::Vector{UInt8}`: Per-sample state assignments (e.g., `0`/`1`)
   produced by the MDL idealization over the entire trace length.
+- `unfiltered_breaks::Vector{Float32}`: The raw breakpoints detected before any
+  post-processing or filtering steps (e.g., before applying a minimum segment
+  length constraint).
+- `step_values::Vector{Float32}`: The estimated signal levels (step values)
+  corresponding to each segment defined by the breakpoints. 
 
 # Notes
 - Units of `breakpoints` and `dwell_times_approx` depend on the sampling

@@ -106,7 +106,11 @@ function naive_method(data::Vector{Float32}, Δt::Float32, method::NaiveMethod) 
         push!(idealized_data, current_state)
         previous_point = point
     end
-    dwell_times = append!([breakpoints[1]], diff(breakpoints))
+    if isempty(breakpoints)
+        dwell_times = [Δt * length(data)]  # entire duration if no breakpoints
+    else
+        dwell_times = append!([breakpoints[1]], diff(breakpoints))
+    end
     NaiveMethodOutput(breakpoints, dwell_times, idealized_data)
 end
 

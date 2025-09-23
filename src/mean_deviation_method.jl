@@ -93,7 +93,7 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
                 
             end
             different_state_than_mean = true
-            else
+        else
             if different_state_than_mean
                 push!(dwell_times_approx, temporary_dwell_time * Δt)
                 temporary_dwell_time = 1

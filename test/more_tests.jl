@@ -37,10 +37,15 @@ end
 end
 
 @testset "deviation_from_mean_method behavior" begin
-    # construct a simple step signal: 10 samples at 0, then 10 at 1
-    step = vcat(fill(0.0f0, 10), fill(1.0f0, 10))
+    Random.seed!(1234)
+    signal = Float32[]
+	for i in 1:4
+		v = (i % 2 == 0) ? 1.0f0 : 0.0f0
+		# longer segments (20 samples) with small noise to guarantee threshold crossings
+		append!(signal, v .+ 0.01f0 * randn(Float32, 20))
+	end
     m = IonChannel.MeanDeviationMethod(0.0f0)
-    out = IonChannel.deviation_from_mean_method(step, 0.001f0, m)
+    out = IonChannel.deviation_from_mean_method(signal, 0.001f0, m)
     @test isa(out, IonChannel.MeanDeviationMethodOutput)
     # expect at least one dwell time detected (transition)
     @test length(out.dwell_times_approx) >= 1
@@ -58,12 +63,12 @@ end
     Δt = 0.001f0
 
     # Naive method
-    nm = IonChannel.NaiveMethod(UInt16(50))
+    nm = IonChannel.NaiveMethod()
     nout = IonChannel.naive_method(signal, Δt, nm)
     @test isa(nout, IonChannel.NaiveMethodOutput)
 
     # Mika method with small number of bins to keep deterministic
-    mm = IonChannel.MikaMethod(UInt16(20))
+    mm = IonChannel.MikaMethod()
     mout = IonChannel.mika_method(signal, Δt, mm)
     @test isa(mout, IonChannel.MikaMethodOutput)
     @test length(mout.idealized_data) == length(signal)

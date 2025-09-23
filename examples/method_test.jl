@@ -33,27 +33,6 @@ md"""
 ## Loading necessary packages
 """
 
-# ╔═╡ e4f89e4e-6d7e-40c2-9ce0-25924dcb6fee
-md"""
-### Reading data from files
-"""
-
-# ╔═╡ 7044c2e9-cbd0-4b34-a476-3e03624a730c
-project_directory_files = cd(readdir, pwd());
-
-# ╔═╡ e5c455d4-6313-48ad-a2ba-e72b119429fe
-md"""
-Pick data folder (has to be within the notebooks directory)
-
-$(@bind data_folder Select(project_directory_files))
-"""
-
-# ╔═╡ 1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
-
-# ╔═╡ 3ce29b12-01f6-48c6-95e6-233b2109d55f
-voltage_names
-
 # ╔═╡ 471b5827-a5cc-4cf0-9134-62b77750d473
 # ╠═╡ disabled = true
 #=╠═╡
@@ -69,8 +48,116 @@ begin
 end
   ╠═╡ =#
 
+# ╔═╡ da9e0281-ea18-4f4d-84fd-2022826cdb12
+md"""
+### Reading data from files
+"""
+
+# ╔═╡ 234d65fb-c411-45a4-8cc3-3a32b4df8ec2
+project_directory_files = cd(readdir, pwd());
+
+# ╔═╡ bbb40b9b-d7df-40e6-af32-57c03420583e
+md"""
+Pick data folder (has to be within the notebooks directory)
+
+$(@bind data_folder Select(project_directory_files))
+"""
+
+# ╔═╡ 07583db4-1eba-4084-9a65-0b31173f37d9
+md"""
+Pick data type:
+
+$(@bind data_type Select(["txt", "pickle"]))
+"""
+
+# ╔═╡ 960fb302-6252-4b90-bf1f-f5d744c4c2ac
+if data_type == "txt"
+	data_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+elseif data_type == "pickle"
+	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
+end;
+
+# ╔═╡ 9f241a6f-27f2-44b5-887d-81d469294550
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
+end
+
+# ╔═╡ 1599b194-dfb4-4f3e-bc4b-c62857f74a54
+begin
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data)[2:2:end];
+	end
+end;
+
+# ╔═╡ e336e5e0-94a9-4093-8969-276ae308988f
+md"""
+Data file: $(@bind data_file Select(data_filenames))
+"""
+
+# ╔═╡ 61740328-3bbe-4a40-ad22-5dc1b9e1eb76
+begin
+	if data_type == "txt"
+		local dt = split(data_file, '.')
+		dt[1] = dt[1]*"dwell_timesy"
+		md"""
+		Dwell times file: $(dwell_times_file = join(dt, '.'))
+		"""
+	end
+end
+
+# ╔═╡ c85c05ff-21e9-44de-b908-72a8864abec0
+begin
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
+end
+
+# ╔═╡ 8d1de076-505d-4b09-abd4-579d9f3d91ba
+data_file_path
+
 # ╔═╡ 47620f98-a1b9-4d39-9911-26c27edfe4bf
 Δt::Float32 = 1e-4
+
+# ╔═╡ edd4a010-6986-480b-9ec0-4d7fba52ac93
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
+
+# ╔═╡ 4349a657-0eac-40e7-8b84-8696aaa3e690
+begin
+	md"""
+	Pick how many points to idealize (1000:$(length(x)))
+	
+	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
+	"""
+end
+
+# ╔═╡ 3f894fd5-2256-45a5-8ef9-039223f32014
+begin
+	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
+	normalized_data = normalize_data(data)
+	data["x"] = normalized_data
+end
 
 # ╔═╡ e6718caf-64b7-46fe-9712-48603ffb7e74
 models_path = pwd() * "/models/"
@@ -107,93 +194,50 @@ begin
 end
 
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
-# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-methods = [MDLMethod(UInt16(2), Float32(1.0)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
+begin
+	# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
+	methods_txt = [MDLMethod(UInt16(2), Float32(0.8)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
+	methods_pickle = methods_txt
+	methods_pickle[1] = MDLMethod(UInt16(300), Float32(0.8))
+end
 
 # ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	error_outputs = Dict([])
-	for method in methods
+	for method in methods_txt
 		@info "using $(method)"
-		m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
+		m_table, m_acc, m_error = mean_error_txt(method, Δt, UInt32(1000), true)
 		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
 	end
 	error_outputs
 end
+  ╠═╡ =#
+
+# ╔═╡ d3d9a860-61e4-48aa-8bb2-f7adde600f51
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	error_outputs = Dict([])
+	for method in methods_pickle
+		@info "using $(method)"
+		m_table, m_acc, m_error = mean_error_pickle(method, Δt, UInt32(50000), true)
+		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
+	end
+	error_outputs
+end
+  ╠═╡ =#
 
 # ╔═╡ fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
+#=╠═╡
 for filename in keys(error_outputs)
 	# mkdir("../outp/$(filename)")
 	CSV.write("../outp/$(filename)/mean_errors.csv", error_outputs[filename][1])
 	CSV.write("../outp/$(filename)/mean_accuracies.csv", error_outputs[filename][2])
 	CSV.write("../outp/$(filename)/mean_accuracies_voltages.csv", error_outputs[filename][3])
 end
-
-# ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
-md"""
-Pick membrane voltage: $(@bind voltage Select(voltage_names))
-"""
-
-# ╔═╡ b277b495-5381-4591-af60-89ccc8aa80f6
-begin
-	path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-	path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
-end;
-
-# ╔═╡ 551a682c-d4f7-4337-a735-e103014d957b
-begin
-	data_filenames = cd(readdir, path_data);
-	clean_filenames = filter(
-        fname -> occursin(r"^ce\d+\.txt$", fname),
-        data_filenames
-    )
-end
-
-# ╔═╡ bcc7cc74-788a-4e0a-b059-2f00ecd0aba5
-data_filenames
-
-# ╔═╡ eee4b6f1-a9f8-45d8-94cd-8bc36c1b5e1f
-voltage_names
-
-# ╔═╡ 43f2d875-7e65-4e95-ae13-01c606180bcd
-md"""
-Data file: $(@bind data_file Select(clean_filenames))
-"""
-
-# ╔═╡ 1a751b4a-16a8-4270-9e4f-54c200b0a844
-begin
-	local dt = split(data_file, '.')
-	dt[1] = dt[1]*"dwell_timesy"
-	md"""
-	Dwell times file: $(dwell_times_file = join(dt, '.'))
-	"""
-end
-
-# ╔═╡ b9479dd4-a894-4c02-857f-facbfae2ab0e
-begin
-	data_file_path = path_data * data_file
-	dwell_times_path = path_dwell_times * dwell_times_file
-end;
-
-# ╔═╡ 8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
-x, y = read_data(data_file_path, dwell_times_path)
-
-# ╔═╡ 4349a657-0eac-40e7-8b84-8696aaa3e690
-begin
-	md"""
-	Pick how many points to idealize (1000:$(length(x)))
-	
-	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
-	"""
-	data_size = UInt32(data_size)
-end
-
-# ╔═╡ 3f894fd5-2256-45a5-8ef9-039223f32014
-begin
-	data = get_specified_datapoints(x, y, Δt, data_size)
-	normalized_data = normalize_data(data)
-	data["x"] = normalized_data
-end
+  ╠═╡ =#
 
 # ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
 begin
@@ -338,20 +382,56 @@ MDL minimum segments $(@bind min_seg Slider(1:300, default=2, show_value=true))
 # ╔═╡ 4bed656f-91f1-470c-b397-dc35d997a086
 method = MDLMethod(min_seg, threshold)
 
+# ╔═╡ 8f012c3e-d5f1-4267-a686-ee458a833a2a
+
+
+# ╔═╡ 3d501ec5-1bd0-46af-a212-b8f583776880
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	signal = Float32[]
+	for i in 1:4
+		v = (i % 2 == 0) ? 1.0f0 : 0.0f0
+		# longer segments (20 samples) with small noise to guarantee threshold crossings
+		append!(signal, v .+ 0.01f0 * randn(Float32, 20))
+	end
+	Δtt = 0.001f0
+	
+	# Naive method
+	nm = IonChannel.NaiveMethod()
+	nout = IonChannel.naive_method(signal, Δtt, nm)
+end
+  ╠═╡ =#
+
+# ╔═╡ 38d07240-efa8-46e3-9fef-ab30ae73ba30
+begin
+	# Random.seed!(1234)
+	signal = Float32[]
+	for i in 1:4
+		v = (i % 2 == 0) ? 1.0f0 : 0.0f0
+		# longer segments (20 samples) with small noise to guarantee threshold crossings
+		append!(signal, v .+ 0.01f0 * randn(Float32, 20))
+	end
+	m = IonChannel.MeanDeviationMethod(0.0f0)
+	out = IonChannel.deviation_from_mean_method(signal, 0.001f0, m)
+end
+
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
 # ╠═dbd814ae-a166-4096-a3bc-69a169aa1e5a
-# ╠═e4f89e4e-6d7e-40c2-9ce0-25924dcb6fee
-# ╠═7044c2e9-cbd0-4b34-a476-3e03624a730c
-# ╠═e5c455d4-6313-48ad-a2ba-e72b119429fe
-# ╠═1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-# ╟─3ce29b12-01f6-48c6-95e6-233b2109d55f
-# ╠═b277b495-5381-4591-af60-89ccc8aa80f6
-# ╠═bcc7cc74-788a-4e0a-b059-2f00ecd0aba5
-# ╠═1a751b4a-16a8-4270-9e4f-54c200b0a844
-# ╠═b9479dd4-a894-4c02-857f-facbfae2ab0e
-# ╠═8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
-# ╟─471b5827-a5cc-4cf0-9134-62b77750d473
+# ╠═471b5827-a5cc-4cf0-9134-62b77750d473
+# ╠═da9e0281-ea18-4f4d-84fd-2022826cdb12
+# ╠═234d65fb-c411-45a4-8cc3-3a32b4df8ec2
+# ╠═bbb40b9b-d7df-40e6-af32-57c03420583e
+# ╠═07583db4-1eba-4084-9a65-0b31173f37d9
+# ╠═960fb302-6252-4b90-bf1f-f5d744c4c2ac
+# ╠═9f241a6f-27f2-44b5-887d-81d469294550
+# ╠═1599b194-dfb4-4f3e-bc4b-c62857f74a54
+# ╠═e336e5e0-94a9-4093-8969-276ae308988f
+# ╠═61740328-3bbe-4a40-ad22-5dc1b9e1eb76
+# ╠═c85c05ff-21e9-44de-b908-72a8864abec0
+# ╠═8d1de076-505d-4b09-abd4-579d9f3d91ba
+# ╠═edd4a010-6986-480b-9ec0-4d7fba52ac93
 # ╠═4349a657-0eac-40e7-8b84-8696aaa3e690
 # ╠═47620f98-a1b9-4d39-9911-26c27edfe4bf
 # ╠═3f894fd5-2256-45a5-8ef9-039223f32014
@@ -364,14 +444,11 @@ method = MDLMethod(min_seg, threshold)
 # ╠═1a6b9ad6-6d73-4313-a291-c79d345bdbc5
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═d3d9a860-61e4-48aa-8bb2-f7adde600f51
 # ╠═fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953
-# ╟─551a682c-d4f7-4337-a735-e103014d957b
-# ╟─1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
-# ╟─eee4b6f1-a9f8-45d8-94cd-8bc36c1b5e1f
-# ╠═43f2d875-7e65-4e95-ae13-01c606180bcd
 # ╟─18a20f62-284b-42ca-bad3-ebef333cfda8
 # ╟─a61b3892-d50e-46ed-8a04-fcbe1f11e43e
 # ╟─2cc62dc0-75d2-46a3-90c2-c3dd08c3a3e2
@@ -382,3 +459,6 @@ method = MDLMethod(min_seg, threshold)
 # ╠═bb51a8e8-0d34-437a-b541-10d721b9ebfe
 # ╠═0fa305bd-3398-4abc-a9e8-d347d1997c36
 # ╠═c88f2283-9725-4996-ab54-745cf73e68b9
+# ╠═3d501ec5-1bd0-46af-a212-b8f583776880
+# ╠═38d07240-efa8-46e3-9fef-ab30ae73ba30
+# ╠═8f012c3e-d5f1-4267-a686-ee458a833a2a

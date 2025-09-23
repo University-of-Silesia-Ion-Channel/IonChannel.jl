@@ -211,7 +211,7 @@ function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_ide
 end
 
 """
-    mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
+    mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
 
 Compute the **average mean squared error (MSE)** across multiple datasets,
 using a specified idealization method to approximate dwell times.
@@ -266,9 +266,9 @@ avg_mse = mean_error(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
-function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
+function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
-    data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)
+    data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["txt"]
 
     table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
     mean_error_dict = Dict{String, Float32}()
@@ -316,6 +316,65 @@ function mean_error(method::IdealizationMethod, Δt::Float32, data_size::UInt32,
         table["accuracies"][voltage] = acc_table
         mean_error_dict[voltage] = temp_error / N
         mean_accuracy_dict[voltage] = temp_acc / N
+    end
+
+    table, mean_accuracy_dict, mean_error_dict
+end
+
+function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
+    what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
+    data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["pickle"]
+
+    table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
+    mean_error_dict = Dict{String, Float32}()
+    mean_accuracy_dict = Dict{String, Float32}()
+    if verbose
+        @info "$(what_first_file_path)"
+    end
+    what_first_dict = Dict(
+	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
+	    for line in eachline(what_first_file_path)
+	)
+
+    for pickle_type in keys(data_paths_dict["data paths"])
+        if verbose
+            @info "Processing type $(pickle_type)"
+        end
+        N = length(data_paths_dict["data paths"][pickle_type])
+        temp_error = 0.0f0
+        temp_acc = 0.0f0
+        acc_table = Float32[]
+        errors_table = Float32[]
+        for i in 1:N
+            if verbose
+                @info "Processing file $(data_paths_dict["data paths"][pickle_type][i])"
+            end
+            x, y = read_data(data_paths_dict["data paths"][pickle_type][i])
+            y = Δt .* y .* 1000
+            data = get_specified_datapoints(x, y, Δt, data_size)
+            normalized_data = normalize_data(data)
+            data["x"] = normalized_data
+            method_output = calculate_method(normalized_data, method, Δt)
+
+            mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
+            temp_error += mse
+            push!(errors_table, mse)
+            actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths_dict["data paths"][pickle_type][i], '/')[end], Δt)
+            if typeof(method_output) <: MikaMethodOutput
+                vals = sort(unique(method_output.idealized_data))
+                mapped = (method_output.idealized_data .== vals[2])
+                approx_idealization = Vector{UInt8}(mapped)
+            else
+                approx_idealization = method_output.idealized_data
+            end
+            acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
+            push!(acc_table, acc)
+            temp_acc += acc
+        end
+        table["errors"][pickle_type] = errors_table
+        table["accuracies"][pickle_type] = acc_table
+        mean_error_dict[pickle_type] = temp_error / N
+        mean_accuracy_dict[pickle_type] = temp_acc / N
     end
 
     table, mean_accuracy_dict, mean_error_dict

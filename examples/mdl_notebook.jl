@@ -41,89 +41,81 @@ md"""
 ### Reading data from files
 """
 
-# ╔═╡ 7044c2e9-cbd0-4b34-a476-3e03624a730c
+# ╔═╡ 789c489f-51a4-4388-b294-3a7a289702e9
 project_directory_files = cd(readdir, pwd());
 
-# ╔═╡ e5c455d4-6313-48ad-a2ba-e72b119429fe
+# ╔═╡ 848fb88d-976c-49b9-9bff-e36f8ca8a03a
 md"""
 Pick data folder (has to be within the notebooks directory)
 
 $(@bind data_folder Select(project_directory_files))
 """
 
-# ╔═╡ 1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
-
-# ╔═╡ 3ce29b12-01f6-48c6-95e6-233b2109d55f
-voltage_names
-
-# ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
+# ╔═╡ 869346f8-9afd-4c53-8fb8-3c23e181a0af
 md"""
-Pick membrane voltage: $(@bind voltage Select(voltage_names))
+Pick data type:
+
+$(@bind data_type Select(["txt", "pickle"]))
 """
 
-# ╔═╡ b277b495-5381-4591-af60-89ccc8aa80f6
-begin
-	path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-	path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+# ╔═╡ c419341d-631d-43ab-8fe0-87bf5684a580
+if data_type == "txt"
+	data_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+elseif data_type == "pickle"
+	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
 end;
 
-# ╔═╡ b22ddb25-23a9-4a3c-80a7-5b8984a95c1d
+# ╔═╡ 48d73436-d684-4715-b244-14ef8138e6d3
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
+end
+
+# ╔═╡ f8985d91-0e26-4e73-adb6-a244e8d2264b
 begin
-	data_filenames = cd(readdir, path_data)[2:2:end];
-	dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data);
+	end
 end;
 
-# ╔═╡ 43f2d875-7e65-4e95-ae13-01c606180bcd
+# ╔═╡ 8e621678-af94-416e-a0df-4c0b4b44ceb5
 md"""
 Data file: $(@bind data_file Select(data_filenames))
 """
 
-# ╔═╡ 1a751b4a-16a8-4270-9e4f-54c200b0a844
+# ╔═╡ 77220080-5ede-4641-9e8b-67066a37af2f
 begin
+	if data_type == "txt"
 	local dt = split(data_file, '.')
 	dt[1] = dt[1]*"dwell_timesy"
 	md"""
 	Dwell times file: $(dwell_times_file = join(dt, '.'))
 	"""
-end
-
-# ╔═╡ b9479dd4-a894-4c02-857f-facbfae2ab0e
-begin
-	data_file_path = path_data * data_file
-	dwell_times_path = path_dwell_times * dwell_times_file
-end;
-
-# ╔═╡ 8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
-x, y = read_data(data_file_path, dwell_times_path)
-
-# ╔═╡ 471b5827-a5cc-4cf0-9134-62b77750d473
-# ╠═╡ disabled = true
-#=╠═╡
-begin
-	idealizations = create_idealizations()
-	open("idealizations.txt", "w") do f
-	    for (key, value) in idealizations
-	        println(f, "$key")
-			values = join(value, ", ")
-			println(f, "$values")
-	    end
 	end
 end
-  ╠═╡ =#
 
-# ╔═╡ f66d33ae-2c3e-4661-84fe-8de5a29ae533
+# ╔═╡ 874cda22-1080-4271-9c69-5335aa8ed041
 begin
-	md"""
-	Pick how many points to idealize (1000:$(length(x)))
-	
-	$(@bind d_size NumberField(1000:1000:length(x);default=50000))
-	"""
-	
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
 end
-
-# ╔═╡ a2bb9e0a-0566-468a-a4c9-81e6cbe00d86
-data_size = UInt32(d_size)
 
 # ╔═╡ bd9f4e7c-0069-4b61-bd71-4e149c1f6aff
 md"""
@@ -133,12 +125,36 @@ md"""
 # ╔═╡ 47620f98-a1b9-4d39-9911-26c27edfe4bf
 Δt::Float32 = 1e-4
 
+# ╔═╡ 2d89d12d-3b1b-4851-8e46-e83c3431f6a4
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
+
+# ╔═╡ f66d33ae-2c3e-4661-84fe-8de5a29ae533
+begin
+	md"""
+	Pick how many points to idealize (1000:$(length(x)))
+	
+	$(@bind d_size NumberField(1000:1000:length(x);default=10000))
+	"""
+	
+end
+
+# ╔═╡ a2bb9e0a-0566-468a-a4c9-81e6cbe00d86
+data_size = UInt32(d_size)
+
 # ╔═╡ 02435706-2495-49ff-b313-0021cfab445a
 begin
 	data = get_specified_datapoints(x, y, Δt, data_size)
 	normalized_data = normalize_data(data)
 	data["x"] = normalized_data
 end
+
+# ╔═╡ 356e6684-8063-49e3-b635-df3d81f9e05e
+cumsum(data["dwell times"])
 
 # ╔═╡ 5123c61b-7049-4af9-b2db-2800414e3ad2
 md"""
@@ -167,7 +183,7 @@ Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folde
 begin
 	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
 	what_first_dict = Dict(
-	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
 	    for line in eachline(what_fitst_file_path)
 	)
 end
@@ -191,7 +207,7 @@ T_left = trunc(N_left * Δt; digits=4)
 # ╔═╡ a61b3892-d50e-46ed-8a04-fcbe1f11e43e
 begin
 	md"""
-	Right range index $(@bind N_right Slider(N_left:data_size; default=N_left+500, show_value=true))
+	Right range index $(@bind N_right Slider(N_left:data_size-1; default=N_left+500, show_value=true))
 	"""
 end
 
@@ -201,9 +217,9 @@ T_right = trunc(N_right * Δt ;digits=4)
 # ╔═╡ e1010167-91af-4670-bef4-3b2824789aec
 begin
 	md"""
-	Minimum segments to work on: $(@bind min_seg Slider(2:300; default=10, show_value=true))
+	Minimum segments to work on: $(@bind min_seg Slider(2:300; default=2, show_value=true))
 	
-	Threshold for `stepstat_mdl` $(@bind threshold Slider(0.00:0.01:1.0; default=0.8, show_value=true))
+	Threshold for `stepstat_mdl` $(@bind threshold Slider(0.00:0.01:1.0; default=1.0, show_value=true))
 	
 	Number of bins for a histogram $(@bind bins Slider(40:300; default=100, show_value=true))
 	"""
@@ -220,6 +236,11 @@ begin
 	method_output = calculate_method(normalized_data, m, Δt)
 	mean²error, h_dwell_times, h_dwell_times_approx = calculate_mean_square_error(data, method_output.dwell_times_approx, n_bins)
 end
+
+# ╔═╡ c05856d0-e0e0-4ee0-87bb-57f2d566fb63
+md"""
+Mean squared error $(mean²error)
+"""
 
 # ╔═╡ a93aabed-114e-48a9-a322-f16579fd19f5
 begin
@@ -263,30 +284,45 @@ Accuracy $(accuracy) or $(1 - accuracy)
 method_output
 
 # ╔═╡ 6d9cf785-e38e-46e1-990d-7df46d794e68
-plot_mdl_timestep(data, method_output, T_left, T_right, Δt)
+begin
+	plot_mdl_timestep(data, method_output, T_left, T_right, Δt)
+	vline!(method_output.unfiltered_breaks, alpha=0.05)
+end
+
+# ╔═╡ d1355f80-ecf1-451b-9225-131b863e2f82
+method_output.unfiltered_breaks
+
+# ╔═╡ 1031bc9a-da74-4832-9be1-d97998f09821
+md"""
+Remarks:
+Pickle data has way less activity than experimental data (i.e the channel changes states less frequently) making the method better, with use of longer segments. Experimental data because of its' activity requires segments as small as 2.
+"""
+
+# ╔═╡ d0a1be63-d41e-4f3b-9a79-e1c8fc1b2668
+IonChannel.histogram(data["x"])
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
 # ╠═dbd814ae-a166-4096-a3bc-69a169aa1e5a
 # ╟─4cf37e3f-6ac4-4a33-9b45-071c8d4e2347
 # ╟─e4f89e4e-6d7e-40c2-9ce0-25924dcb6fee
-# ╠═7044c2e9-cbd0-4b34-a476-3e03624a730c
-# ╟─e5c455d4-6313-48ad-a2ba-e72b119429fe
-# ╠═1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-# ╟─3ce29b12-01f6-48c6-95e6-233b2109d55f
-# ╟─1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
-# ╟─b277b495-5381-4591-af60-89ccc8aa80f6
-# ╟─b22ddb25-23a9-4a3c-80a7-5b8984a95c1d
-# ╟─43f2d875-7e65-4e95-ae13-01c606180bcd
-# ╟─1a751b4a-16a8-4270-9e4f-54c200b0a844
-# ╟─b9479dd4-a894-4c02-857f-facbfae2ab0e
-# ╟─8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
-# ╟─471b5827-a5cc-4cf0-9134-62b77750d473
-# ╟─f66d33ae-2c3e-4661-84fe-8de5a29ae533
+# ╠═789c489f-51a4-4388-b294-3a7a289702e9
+# ╠═848fb88d-976c-49b9-9bff-e36f8ca8a03a
+# ╠═869346f8-9afd-4c53-8fb8-3c23e181a0af
+# ╠═c419341d-631d-43ab-8fe0-87bf5684a580
+# ╠═48d73436-d684-4715-b244-14ef8138e6d3
+# ╠═f8985d91-0e26-4e73-adb6-a244e8d2264b
+# ╠═8e621678-af94-416e-a0df-4c0b4b44ceb5
+# ╠═77220080-5ede-4641-9e8b-67066a37af2f
+# ╠═c05856d0-e0e0-4ee0-87bb-57f2d566fb63
+# ╠═874cda22-1080-4271-9c69-5335aa8ed041
+# ╠═2d89d12d-3b1b-4851-8e46-e83c3431f6a4
+# ╠═f66d33ae-2c3e-4661-84fe-8de5a29ae533
 # ╟─a2bb9e0a-0566-468a-a4c9-81e6cbe00d86
 # ╟─bd9f4e7c-0069-4b61-bd71-4e149c1f6aff
 # ╠═47620f98-a1b9-4d39-9911-26c27edfe4bf
-# ╟─02435706-2495-49ff-b313-0021cfab445a
+# ╠═02435706-2495-49ff-b313-0021cfab445a
+# ╠═356e6684-8063-49e3-b635-df3d81f9e05e
 # ╟─5123c61b-7049-4af9-b2db-2800414e3ad2
 # ╟─76268105-9dd6-4e2d-a1f5-f87e6d927a61
 # ╟─f7143895-5b25-43a2-aef5-21807505c128
@@ -309,5 +345,8 @@ plot_mdl_timestep(data, method_output, T_left, T_right, Δt)
 # ╠═980869db-e712-4344-978e-0205e24cc1d2
 # ╟─18a20f62-284b-42ca-bad3-ebef333cfda8
 # ╟─a61b3892-d50e-46ed-8a04-fcbe1f11e43e
-# ╟─e1010167-91af-4670-bef4-3b2824789aec
+# ╠═e1010167-91af-4670-bef4-3b2824789aec
 # ╠═6d9cf785-e38e-46e1-990d-7df46d794e68
+# ╠═d1355f80-ecf1-451b-9225-131b863e2f82
+# ╟─1031bc9a-da74-4832-9be1-d97998f09821
+# ╠═d0a1be63-d41e-4f3b-9a79-e1c8fc1b2668

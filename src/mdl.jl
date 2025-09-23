@@ -249,7 +249,8 @@ end
     stepstat_mdl(
         data::Vector{Float32},
         BP::Vector{UInt32},
-        threshold::Float32=0.8f0
+        threshold::Float32=0.8f0,
+        Δt::Float32
     ) :: Tuple{Vector{UInt32}, Vector{Float32}}
 
 Estimate step values per segment and filter breakpoints by jump magnitude.
@@ -264,6 +265,7 @@ Arguments:
 - data::Vector{Float32}: Input signal.
 - BP::Vector{UInt32}: Candidate breakpoints (1-based).
 - threshold::Float32: Minimum absolute difference between consecutive step means to retain a breakpoint.
+- Δt::Float32: Sampling interval used to convert indices to time.
 
 Returns:
 - (filtered::Vector{UInt32}, stepvalue::Vector{Float32}):
@@ -273,29 +275,40 @@ Returns:
 Notes:
 - Ensures each segment has at least one index; if an interval collapses, it uses the breakpoint index.
 """
-function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32=Float32(0.8)) :: Tuple{Vector{UInt32}, Vector{Float32}}
-    push!(BP, UInt32(length(data)))
-    stepvalue = zeros(Float32, length(BP))
-    skip::UInt32 = 1
-    i0::UInt32 = BP[1]
-    for k in eachindex(BP)
-        start::UInt32 = i0 + skip
-        stop::UInt32 = BP[k] - skip
-        if stop < start
-            # @info "Stop: $stop < Start: $start, adjusting to single-point segment"
-            start = BP[k]
-            stop = BP[k]
-        end
-        indices = start:stop
-        if length(indices) == 0
-            indices = Vector{UInt32}([BP[k]])
-        end
-        stepvalue[k] = mean(data[indices])
-        i0 = BP[k]
-    end
+function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32) :: Tuple{Vector{UInt32}, Vector{Float32}}
+    # push!(BP, UInt32(length(data)))
+    # stepvalue = zeros(Float32, length(BP))
+    # skip::UInt32 = 1
+    # i0::UInt32 = BP[1]
+    # for k in eachindex(BP)
+    #     start::UInt32 = i0 + skip
+    #     stop::UInt32 = BP[k] - skip
+    #     if stop < start
+    #         # @info "Stop: $stop < Start: $start, adjusting to single-point segment"
+    #         start = BP[k]
+    #         stop = BP[k]
+    #     end
+    #     indices = start:stop
+    #     if length(indices) == 0
+    #         indices = Vector{UInt32}([BP[k]])
+    #     end
+    #     stepvalue[k] = mean(data[indices])
+    #     @info "Segment $k: indices $start:$stop, mean=$(stepvalue[k])"
+    #     i0 = BP[k]
+    # end
 
+    # jumps = diff(stepvalue)
+    # filtered = BP[1:end - 1][abs.(jumps) .> threshold]
+    # filtered, stepvalue
+    stepvalue = Float32[]
+    b_idxs = vcat(1, BP, length(data))
+    prev_b_idx = b_idxs[1]
+	for b_idx in b_idxs[2:end]
+		push!(stepvalue, mean(data[prev_b_idx:b_idx]))
+		prev_b_idx = b_idx
+	end
     jumps = diff(stepvalue)
-    filtered = BP[1:end - 1][abs.(jumps) .> threshold]
+    filtered = BP[abs.(jumps) .> threshold]
     filtered, stepvalue
 end
 
@@ -386,9 +399,10 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     breaks_forward = mdl_method_part(data, c_method)
     breaks_backward = (length(data) + 1) .- mdl_method_part(data[end:-1:1], c_method)
     all_breaks::Vector{UInt32} = sort(unique(vcat(breaks_forward, breaks_backward)))
+    # @info "$(length(all_breaks)) breakpoints detected before step filtering"
     final_breaks, step_values = stepstat_mdl(data, all_breaks, c_method.threshold)
+    # @info "$final_breaks breakpoints after step filtering"
 	breakpoints::Vector{Float32} = final_breaks .* Δt
-
 	histogram_of_data = histogram_calculator(data)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
@@ -407,7 +421,11 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
 		current_state = current_state == 0 ? 1 : 0
 	end
 	append!(idealized_data, fill(current_state, length(data) - prev_br_idx))
-	dwell_times = append!([breakpoints[1]], diff(breakpoints))
+    if !(isempty(breakpoints))
+	    dwell_times = vcat([breakpoints[1]], diff(breakpoints))
+    else
+        dwell_times = [length(data) * Δt]
+    end
 	MDLMethodOutput(breakpoints, dwell_times, idealized_data, all_breaks .* Δt, step_values)
 end
 
