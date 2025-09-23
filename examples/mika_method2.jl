@@ -44,58 +44,89 @@ md"""
 # ╔═╡ 4963a611-376f-4411-a7a5-6a0ddaf1b01d
 project_directory_files = cd(readdir, pwd());
 
-# ╔═╡ b33321a8-40b2-4490-bad1-d0d484f72128
+# ╔═╡ 5f735b0b-b140-482c-a612-b39c5dc84bbe
 md"""
 Pick data folder (has to be within the notebooks directory)
 
 $(@bind data_folder Select(project_directory_files))
 """
 
-# ╔═╡ d88ffeb9-5c1d-48d0-a121-b0bec21096c2
-voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/")
-
-# ╔═╡ eb5160f5-90aa-402f-94b2-7e6fd7687b68
+# ╔═╡ ad55125c-96c7-4179-a482-dd9591561d16
 md"""
-Pick membrane voltage: $(@bind voltage Select(voltage_names))
+Pick data type:
+
+$(@bind data_type Select(["txt", "pickle"]))
 """
 
-# ╔═╡ ea94079f-d2a7-4324-8407-779e71ae9b3f
-begin
-	path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-	path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+# ╔═╡ b30e14f3-34bb-41b7-8400-85f3d6d31165
+if data_type == "txt"
+	data_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+elseif data_type == "pickle"
+	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
 end;
 
-# ╔═╡ 8715a226-5efb-4883-845e-322b3f3bbf65
-begin
-	data_filenames = cd(readdir, path_data)
-	clean_filenames = filter(
-		fname -> occursin(r"^ce\d+\.txt$", fname),
-		data_filenames
-	)
+# ╔═╡ 8cc3eabf-119e-4a7a-99c0-ebc0997ffee8
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
 end
 
-# ╔═╡ 07ac8432-6ad0-4510-8b21-1100c75e84bc
+# ╔═╡ 76582560-6ec5-4da5-a8ff-d83100634e28
+begin
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data);
+	end
+end;
+
+# ╔═╡ 4491eacb-5b3e-43b5-b9a4-77c989ae1f06
 md"""
-Data file: $(@bind data_file Select(clean_filenames))
+Data file: $(@bind data_file Select(data_filenames))
 """
 
-# ╔═╡ c1366c40-186f-4b49-885d-7aeef515f9cf
+# ╔═╡ 530d0878-eea2-42b7-84c6-eeddb149e6a1
 begin
+	if data_type == "txt"
 	local dt = split(data_file, '.')
 	dt[1] = dt[1]*"dwell_timesy"
 	md"""
 	Dwell times file: $(dwell_times_file = join(dt, '.'))
 	"""
+	end
 end
 
-# ╔═╡ 39edeabe-b2a7-47bc-aef5-66ded8be98e4
+# ╔═╡ 60065fcf-f4a7-44d6-a0bf-39d3020516fc
 begin
-	data_file_path = path_data * data_file
-	dwell_times_path = path_dwell_times * dwell_times_file
-end;
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
+end
 
-# ╔═╡ feb8b2a0-6845-43bc-8ddc-0d94b4d9feb1
-x, y = read_data(data_file_path, dwell_times_path)
+# ╔═╡ cafae4d8-1672-4a17-9bc6-e60bc41f484d
+Δt = Float32(1e-4)
+
+# ╔═╡ b16751d8-e951-462d-921f-658db309e6d8
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
 
 # ╔═╡ 85ba53f6-8432-4141-8f87-7ad9fa7f3070
 begin
@@ -104,14 +135,12 @@ begin
 	
 	$(@bind data_size NumberField(1000:length(x);default=225000))
 	"""
-	data_size = UInt32(data_size)
 end
 
 # ╔═╡ b38496ce-8e02-4d93-8b9a-ea31c2f5727e
 begin
-	Δt = Float32(1e-4)
 	max_time = data_size*Δt
-	data = get_specified_datapoints(x, y, Δt, data_size)
+	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
 end
 
 # ╔═╡ 0bd8638f-7d99-4fe7-b33c-7aae661704c2
@@ -203,19 +232,6 @@ actual_idealized_data = actual_idealize_data(data, what_first_dict, data_file, �
 # ╔═╡ 73ff39b5-9661-4562-9494-ddb598caeff3
 what_first_dict
 
-# ╔═╡ 2f98854f-902f-42d7-8d7a-4e045cf4b6ff
-begin
-	point_max1 = point(histogram_analysis, :pmax1_index, :pmax1)
-	point_min = point(histogram_analysis, :pmin_index, :pmin)
-	point_max2 = point(histogram_analysis, :pmax2_index, :pmax2)
-end
-
-# ╔═╡ 3dee373c-abfc-4a9f-9944-62f37fd7a7dc
-begin
-	line1 = line(point_max1, point_min)
-	line2 = line(point_max2, point_min)
-end
-
 # ╔═╡ 5f38a022-197d-4919-858e-e4afddd04c74
 md"""
 ## Step 4: Dividing the time series of ion channel into idealization + noise, using the minimum between peaks
@@ -228,7 +244,7 @@ md"""
 
 # ╔═╡ 3329d47a-f758-4d6e-84bc-dab7ee93b786
 begin
-	method = MikaMethod(bins)
+	method = MikaMethod()
 	optimized_data = calculate_method(normalized_data, method, Δt)
 	# method_function(method)
 end
@@ -319,11 +335,6 @@ optimized_data.idealized_data
 # ╔═╡ 65182740-c716-4dd3-9d40-9c72e90e07d1
 accuracy = accuracy_of_idealization(actual_data_idealization, approx_idealization)
 
-# ╔═╡ 91ab9866-68d2-4461-863b-f6238dd7a424
-md"""
-Accuracy $accuracy
-"""
-
 # ╔═╡ 534bc421-21d8-44d3-babc-f441ccb523cf
 # ╠═╡ disabled = true
 #=╠═╡
@@ -342,16 +353,16 @@ dicts_to_dataframes(mean_error_output...)
 # ╟─59a7a871-c1ca-4ae3-be64-20ebe078eb53
 # ╟─ff9f76f5-3363-4c12-bb8d-74fa3efb422d
 # ╠═4963a611-376f-4411-a7a5-6a0ddaf1b01d
-# ╠═b33321a8-40b2-4490-bad1-d0d484f72128
-# ╟─ea94079f-d2a7-4324-8407-779e71ae9b3f
-# ╠═d88ffeb9-5c1d-48d0-a121-b0bec21096c2
-# ╟─eb5160f5-90aa-402f-94b2-7e6fd7687b68
-# ╠═8715a226-5efb-4883-845e-322b3f3bbf65
-# ╠═07ac8432-6ad0-4510-8b21-1100c75e84bc
-# ╟─91ab9866-68d2-4461-863b-f6238dd7a424
-# ╟─c1366c40-186f-4b49-885d-7aeef515f9cf
-# ╠═39edeabe-b2a7-47bc-aef5-66ded8be98e4
-# ╠═feb8b2a0-6845-43bc-8ddc-0d94b4d9feb1
+# ╠═5f735b0b-b140-482c-a612-b39c5dc84bbe
+# ╠═ad55125c-96c7-4179-a482-dd9591561d16
+# ╠═b30e14f3-34bb-41b7-8400-85f3d6d31165
+# ╠═8cc3eabf-119e-4a7a-99c0-ebc0997ffee8
+# ╠═76582560-6ec5-4da5-a8ff-d83100634e28
+# ╠═4491eacb-5b3e-43b5-b9a4-77c989ae1f06
+# ╠═530d0878-eea2-42b7-84c6-eeddb149e6a1
+# ╠═60065fcf-f4a7-44d6-a0bf-39d3020516fc
+# ╠═cafae4d8-1672-4a17-9bc6-e60bc41f484d
+# ╠═b16751d8-e951-462d-921f-658db309e6d8
 # ╠═85ba53f6-8432-4141-8f87-7ad9fa7f3070
 # ╠═b38496ce-8e02-4d93-8b9a-ea31c2f5727e
 # ╟─0bd8638f-7d99-4fe7-b33c-7aae661704c2
@@ -373,8 +384,6 @@ dicts_to_dataframes(mean_error_output...)
 # ╠═39e8b080-5909-4402-a5ac-804c1105eb13
 # ╠═894bc0db-42d6-4e35-80e3-051fff301762
 # ╠═73ff39b5-9661-4562-9494-ddb598caeff3
-# ╠═2f98854f-902f-42d7-8d7a-4e045cf4b6ff
-# ╠═3dee373c-abfc-4a9f-9944-62f37fd7a7dc
 # ╟─5f38a022-197d-4919-858e-e4afddd04c74
 # ╟─d5fc85f2-98cf-468b-8b72-e234a8d942ac
 # ╠═3329d47a-f758-4d6e-84bc-dab7ee93b786

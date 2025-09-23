@@ -115,11 +115,13 @@ function get_starting_points_pickle(data_names, data_folder)
 		data_filenames = cd(readdir, path_data)
 		starting_points = Dict()
 		for d_file in data_filenames
+			@info "$d_file"
 			# split_d_file = split(d_file, "_")
 			data_file_path = path_data * d_file
 			dwell_times_path = ""
 			x, _ = read_data(data_file_path, dwell_times_path)
 			starting_points[d_file] = x[1] == -1.0 ? 0 : 1
+			@info "$(starting_points[d_file])"
 		end
 		what_first_dict[d_name] = starting_points
 	end
@@ -127,7 +129,10 @@ function get_starting_points_pickle(data_names, data_folder)
 end
 
 # ╔═╡ c5c4380d-90b8-4ae4-826f-b687b08e30df
+# ╠═╡ disabled = true
+#=╠═╡
 get_starting_points_pickle(data_names, data_folder)
+  ╠═╡ =#
 
 # ╔═╡ 1a751b4a-16a8-4270-9e4f-54c200b0a844
 begin
@@ -339,14 +344,8 @@ begin
 	analysis = analyze_histogram_peaks(prob_hist)
 end
 
-# ╔═╡ f8e01ec8-08aa-4ea2-b2e1-2233f6f1cffe
-sum(prob_hist.weights) * prob_hist.edges[1].step
-
 # ╔═╡ a16c263c-7439-49f0-86ad-dc772de5814c
 plot(prob_hist)
-
-# ╔═╡ 90568834-b2bd-4856-9496-1a5f8cfc191d
-prob_hist.edges[1].step
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -401,6 +400,4 @@ prob_hist.edges[1].step
 # ╠═512bfa00-d3e9-4eae-8d40-403dd96d17c8
 # ╠═f5e05604-8937-4464-9349-be372d62f467
 # ╠═1d8c4a52-ed04-4035-a2be-887e457368bc
-# ╠═f8e01ec8-08aa-4ea2-b2e1-2233f6f1cffe
 # ╠═a16c263c-7439-49f0-86ad-dc772de5814c
-# ╠═90568834-b2bd-4856-9496-1a5f8cfc191d
