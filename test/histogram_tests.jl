@@ -4,7 +4,7 @@ using StatsBase
 @testset "histogram_calculator and related" begin
     # simple bimodal data: half around -1, half around +2
     data = vcat(fill(-1.0f0, 50), fill(2.0f0, 50))
-    hist = IonChannel.histogram_calculator(data, Int16(10))
+    hist = IonChannel.histogram_calculator(data)
 
     @test isa(hist, Histogram)
     # edges should be bins+1
@@ -18,7 +18,7 @@ using StatsBase
 
     # analyze peaks: expect two peaks roughly around the two clusters
     analysis = IonChannel.analyze_histogram_peaks(prob)
-    @test isa(analysis,IonChannel.HistPeakAnalysis)
+    @test isa(analysis, IonChannel.HistPeakAnalysis)
     @test analysis.left_peak_index != analysis.right_peak_index
 
     # threshold width for small epsilon should be between min and max edges
