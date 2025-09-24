@@ -142,7 +142,8 @@ module IonChannel
     histogram_calculator,
     calculate_mean_square_error,
     show_approx_on_plot,
-    mean_error,
+    mean_error_txt,
+    mean_error_pickle,
     deviation_from_mean_method,
     IdealizationMethod,
     MeanDeviationMethod,
@@ -200,6 +201,7 @@ module IonChannel
     MDLMethodOutput,
     mdl_method,
     create_paths_dictionary,
-    dicts_to_dataframes
+    dicts_to_dataframes,
+    plot_mdl_timestep
 
 end

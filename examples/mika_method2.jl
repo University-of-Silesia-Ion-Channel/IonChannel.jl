@@ -102,7 +102,7 @@ begin
 	md"""
 	Pick how many points to idealize (1000:$(length(x)))
 	
-	$(@bind data_size NumberField(1000:length(x);default=50000))
+	$(@bind data_size NumberField(1000:length(x);default=225000))
 	"""
 	data_size = UInt32(data_size)
 end
@@ -144,7 +144,7 @@ end
 # ╔═╡ 7f5842e8-f126-494f-8623-979a00d67cd4
 begin
 	# histogram of the standardized data
-	histogram_of_data = histogram_calculator(data["x"], bins)
+	histogram_of_data = histogram_calculator(data["x"])
 end
 
 # ╔═╡ b999775a-98a5-4381-a94e-a562c8198266
@@ -192,13 +192,16 @@ Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folde
 begin
 	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
 	what_first_dict = Dict(
-	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
 	    for line in eachline(what_fitst_file_path)
 	)
 end
 
 # ╔═╡ 894bc0db-42d6-4e35-80e3-051fff301762
 actual_idealized_data = actual_idealize_data(data, what_first_dict, data_file, Δt)
+
+# ╔═╡ 73ff39b5-9661-4562-9494-ddb598caeff3
+what_first_dict
 
 # ╔═╡ 2f98854f-902f-42d7-8d7a-4e045cf4b6ff
 begin
@@ -253,13 +256,8 @@ end
 
 # ╔═╡ f20d660a-5bab-4f60-aa60-35d084357c92
 begin
-	mean²error, h_dwell_times, h_dwell_times_approx = calculate_mean_square_error(data, dwell_times_approx(optimized_data), dt_bins)
+	mean²error, h_dwell_times, h_dwell_times_approx = calculate_mean_square_error(data, dwell_times_approx(optimized_data))
 end
-
-# ╔═╡ 597c023d-e915-4846-bfd8-407e309c3852
-md"""
-Mean squared error $(mean²error)
-"""
 
 # ╔═╡ bdf93682-7c33-47f1-b93e-92eb9dacd4d4
 begin
@@ -268,19 +266,8 @@ begin
 	title!("Histogram of dwell times")
 end
 
-# ╔═╡ 5df65501-ecfa-4165-a317-3c5dcc66a0e8
-md"""
-Mean squared error $(mean²error)
-"""
-
 # ╔═╡ 3d798649-3698-496f-834e-fded75c2ea01
 show_threshold_on_plot(probability_histogram, histogram_analysis, optimized_data)
-
-# ╔═╡ e8c75a4d-a8ac-4ceb-a34e-92a09df58e85
-sum(histogram_analysis.weights[histogram_analysis.pmax1_index:histogram_analysis.pmin_index])
-
-# ╔═╡ ebad35d5-08fb-474a-9b82-8527691b8b17
-sum(histogram_analysis.weights[histogram_analysis.pmin_index:histogram_analysis.pmax2_index])
 
 # ╔═╡ a9955f5c-7672-411a-a341-c9484929a22a
 md"""
@@ -313,10 +300,40 @@ plot_idealization_representation(data, optimized_data, T_left, T_right, Δt)
 # ╔═╡ dd0870d6-f5a4-4127-998e-5e150e020535
 show_approx_on_plot(data, optimized_data, T_left, T_right, Δt)
 
-# ╔═╡ 8d96a05f-f1a1-4f80-a2ef-b81ad6c504ba
+# ╔═╡ 0929eed9-6e3c-4664-8d06-da8b773a09bb
+actual_data_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
+
+# ╔═╡ c499a81b-b29a-4dfe-a6d0-e18f3f3443e0
+begin
+	vals = sort(unique(optimized_data.idealized_data))
+	mapped = (optimized_data.idealized_data .== vals[2])
+	approx_idealization = Vector{UInt8}(mapped)
+end
+
+# ╔═╡ 41e70cb6-edb5-4b6e-8c00-6c397e827ed8
+approx_idealization
+
+# ╔═╡ 76d56933-a3e1-41f0-b786-74cf9bce01a6
+optimized_data.idealized_data
+
+# ╔═╡ 65182740-c716-4dd3-9d40-9c72e90e07d1
+accuracy = accuracy_of_idealization(actual_data_idealization, approx_idealization)
+
+# ╔═╡ 91ab9866-68d2-4461-863b-f6238dd7a424
+md"""
+Accuracy $accuracy
+"""
+
+# ╔═╡ 534bc421-21d8-44d3-babc-f441ccb523cf
 # ╠═╡ disabled = true
 #=╠═╡
-m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
+mean_error_output = mean_error(MikaMethod(UInt16(100)), Δt, UInt32(225000), true)
+  ╠═╡ =#
+
+# ╔═╡ 960fd8ff-770e-486f-a317-107545f25b1e
+# ╠═╡ disabled = true
+#=╠═╡
+dicts_to_dataframes(mean_error_output...)
   ╠═╡ =#
 
 # ╔═╡ Cell order:
@@ -331,9 +348,9 @@ m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
 # ╟─eb5160f5-90aa-402f-94b2-7e6fd7687b68
 # ╠═8715a226-5efb-4883-845e-322b3f3bbf65
 # ╠═07ac8432-6ad0-4510-8b21-1100c75e84bc
+# ╟─91ab9866-68d2-4461-863b-f6238dd7a424
 # ╟─c1366c40-186f-4b49-885d-7aeef515f9cf
 # ╠═39edeabe-b2a7-47bc-aef5-66ded8be98e4
-# ╟─597c023d-e915-4846-bfd8-407e309c3852
 # ╠═feb8b2a0-6845-43bc-8ddc-0d94b4d9feb1
 # ╠═85ba53f6-8432-4141-8f87-7ad9fa7f3070
 # ╠═b38496ce-8e02-4d93-8b9a-ea31c2f5727e
@@ -355,6 +372,7 @@ m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
 # ╠═c20208f8-f5c6-4d51-9111-e634bc7410a3
 # ╠═39e8b080-5909-4402-a5ac-804c1105eb13
 # ╠═894bc0db-42d6-4e35-80e3-051fff301762
+# ╠═73ff39b5-9661-4562-9494-ddb598caeff3
 # ╠═2f98854f-902f-42d7-8d7a-4e045cf4b6ff
 # ╠═3dee373c-abfc-4a9f-9944-62f37fd7a7dc
 # ╟─5f38a022-197d-4919-858e-e4afddd04c74
@@ -365,10 +383,7 @@ m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
 # ╠═b60933b9-7eaa-4402-a74a-6520fde3f17a
 # ╠═f20d660a-5bab-4f60-aa60-35d084357c92
 # ╠═bdf93682-7c33-47f1-b93e-92eb9dacd4d4
-# ╟─5df65501-ecfa-4165-a317-3c5dcc66a0e8
 # ╠═3d798649-3698-496f-834e-fded75c2ea01
-# ╠═e8c75a4d-a8ac-4ceb-a34e-92a09df58e85
-# ╠═ebad35d5-08fb-474a-9b82-8527691b8b17
 # ╟─a9955f5c-7672-411a-a341-c9484929a22a
 # ╟─79bf72be-62d7-43d7-a4e4-ad404ae88e75
 # ╟─3fbc7bd1-9d53-432d-9489-13c25c862387
@@ -376,4 +391,10 @@ m_table, m_acc, m_error = mean_error(method, Δt, UInt32(225000), true)
 # ╟─025a18f7-6e37-4724-851c-7e9d2c3755be
 # ╠═39bfa301-3259-496f-89b3-d0b38c793e3b
 # ╠═dd0870d6-f5a4-4127-998e-5e150e020535
-# ╠═8d96a05f-f1a1-4f80-a2ef-b81ad6c504ba
+# ╠═0929eed9-6e3c-4664-8d06-da8b773a09bb
+# ╠═c499a81b-b29a-4dfe-a6d0-e18f3f3443e0
+# ╠═41e70cb6-edb5-4b6e-8c00-6c397e827ed8
+# ╠═76d56933-a3e1-41f0-b786-74cf9bce01a6
+# ╠═65182740-c716-4dd3-9d40-9c72e90e07d1
+# ╠═534bc421-21d8-44d3-babc-f441ccb523cf
+# ╠═960fd8ff-770e-486f-a317-107545f25b1e

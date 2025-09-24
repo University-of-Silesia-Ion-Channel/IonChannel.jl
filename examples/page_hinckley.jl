@@ -51,51 +51,105 @@ Pick data folder (has to be within the notebooks directory)
 $(@bind data_folder Select(project_directory_files))
 """
 
-# ╔═╡ 1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+# ╔═╡ d7f7458a-a23e-4fe9-872f-1c88efe47c5c
+md"""
+Pick data type:
 
-# ╔═╡ 3ce29b12-01f6-48c6-95e6-233b2109d55f
-voltage_names
+$(@bind data_type Select(["txt", "pickle"]))
+"""
+
+# ╔═╡ 1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
+if data_type == "txt"
+	data_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+elseif data_type == "pickle"
+	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
+end;
 
 # ╔═╡ 1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
-md"""
-Pick membrane voltage: $(@bind voltage Select(voltage_names))
-"""
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
+end
 
 # ╔═╡ b277b495-5381-4591-af60-89ccc8aa80f6
 begin
-	path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-	path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data);
+	end
 end;
 
-# ╔═╡ b22ddb25-23a9-4a3c-80a7-5b8984a95c1d
-begin
-	data_filenames = cd(readdir, path_data)[2:2:end];
-	dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
-end;
+# ╔═╡ 04dbc378-3548-4d7b-bb65-f9317c093195
+data_filenames
 
 # ╔═╡ 43f2d875-7e65-4e95-ae13-01c606180bcd
 md"""
 Data file: $(@bind data_file Select(data_filenames))
 """
 
+# ╔═╡ 1f91879c-73cf-4575-b83d-fea8252e07bd
+data_names
+
+# ╔═╡ 52e04747-9111-427f-9dc1-4f33640c8eef
+data_filenames
+
+# ╔═╡ a5a2e939-8017-416e-9efe-5955ec467398
+function get_starting_points_pickle(data_names, data_folder)
+	
+	
+	what_first_dict = Dict()
+	for d_name in data_names
+		path_data = pwd() * "/$(data_folder)/pickles/$(d_name)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data)
+		starting_points = Dict()
+		for d_file in data_filenames
+			# split_d_file = split(d_file, "_")
+			data_file_path = path_data * d_file
+			dwell_times_path = ""
+			x, _ = read_data(data_file_path, dwell_times_path)
+			starting_points[d_file] = x[1] == -1.0 ? 0 : 1
+		end
+		what_first_dict[d_name] = starting_points
+	end
+	what_first_dict
+end
+
+# ╔═╡ c5c4380d-90b8-4ae4-826f-b687b08e30df
+get_starting_points_pickle(data_names, data_folder)
+
 # ╔═╡ 1a751b4a-16a8-4270-9e4f-54c200b0a844
 begin
+	if data_type == "txt"
 	local dt = split(data_file, '.')
 	dt[1] = dt[1]*"dwell_timesy"
 	md"""
 	Dwell times file: $(dwell_times_file = join(dt, '.'))
 	"""
+	end
 end
 
 # ╔═╡ b9479dd4-a894-4c02-857f-facbfae2ab0e
 begin
-	data_file_path = path_data * data_file
-	dwell_times_path = path_dwell_times * dwell_times_file
-end;
-
-# ╔═╡ 8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
-x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
+end
 
 # ╔═╡ 471b5827-a5cc-4cf0-9134-62b77750d473
 # ╠═╡ disabled = true
@@ -112,19 +166,6 @@ begin
 end
   ╠═╡ =#
 
-# ╔═╡ f66d33ae-2c3e-4661-84fe-8de5a29ae533
-begin
-	md"""
-	Pick how many points to idealize (1000:$(length(x)))
-	
-	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
-	"""
-	data_size = UInt32(data_size)
-end
-
-# ╔═╡ a2bb9e0a-0566-468a-a4c9-81e6cbe00d86
-
-
 # ╔═╡ bd9f4e7c-0069-4b61-bd71-4e149c1f6aff
 md"""
 ### Standardizing data
@@ -133,12 +174,36 @@ md"""
 # ╔═╡ 47620f98-a1b9-4d39-9911-26c27edfe4bf
 Δt::Float32 = 1e-4
 
+# ╔═╡ 8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
+
+# ╔═╡ f66d33ae-2c3e-4661-84fe-8de5a29ae533
+begin
+	md"""
+	Pick how many points to idealize (1000:$(length(x)))
+	
+	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
+	"""
+	
+end
+
 # ╔═╡ 02435706-2495-49ff-b313-0021cfab445a
 begin
-	data = get_specified_datapoints(x, y, Δt, data_size)
+	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
 	normalized_data = normalize_data(data)
 	data["x"] = normalized_data
 end
+
+# ╔═╡ 69406039-4a56-4163-b500-c13ad6618520
+data
+
+# ╔═╡ 9bae896a-a583-4fd9-8cc7-2b32ff748820
+cumsum(data["dwell times"])
 
 # ╔═╡ fef2cc53-d97a-4695-ac71-2caae03922d5
 md"""
@@ -164,6 +229,9 @@ T_left = trunc(N_left * Δt; digits=4)
 
 # ╔═╡ f558c3bb-a336-455b-8397-8d8e8c6707c7
 T_right = trunc(N_right * Δt ;digits=4)
+
+# ╔═╡ 10720e98-1f90-4cbd-b373-5d21b8729c58
+data["dwell times"]
 
 # ╔═╡ 5123c61b-7049-4af9-b2db-2800414e3ad2
 md"""
@@ -191,7 +259,7 @@ begin
 end
 
 # ╔═╡ f2ac42ea-ebb0-42c4-9269-dccdcd575e74
-m = MeanDeviationMethod(δ_, λ_)
+m = MeanDeviationMethod(δ_)
 
 # ╔═╡ 99f08837-ddcd-4eb3-9550-3aff9f257e8c
 begin
@@ -232,7 +300,7 @@ Pick file to idealize data $(@bind what_first_path Select(cd(readdir, data_folde
 begin
 	what_fitst_file_path = pwd() * "/$(data_folder)/$(what_first_path)"
 	what_first_dict = Dict(
-	    String(split(line,',')[1]) => parse(Int, split(line,',')[2])
+	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
 	    for line in eachline(what_fitst_file_path)
 	)
 end
@@ -266,19 +334,19 @@ data["x"]
 
 # ╔═╡ 1d8c4a52-ed04-4035-a2be-887e457368bc
 begin
-	hist = histogram_calculator(data["x"], UInt16(100))
+	hist = histogram_calculator(data["x"], Int16(100))
 	prob_hist = calculate_probability_histogram(hist)
 	analysis = analyze_histogram_peaks(prob_hist)
 end
 
-# ╔═╡ 680205e3-6e81-479f-a874-52818ffa2839
-abs(analysis.edges[analysis.pmax2_index] - analysis.edges[analysis.pmax1_index])
+# ╔═╡ f8e01ec8-08aa-4ea2-b2e1-2233f6f1cffe
+sum(prob_hist.weights) * prob_hist.edges[1].step
 
-# ╔═╡ bcac04d9-c138-49eb-b42c-a16f21461e43
-analysis.edges[analysis.pmax2_index]
+# ╔═╡ a16c263c-7439-49f0-86ad-dc772de5814c
+plot(prob_hist)
 
-# ╔═╡ e56f88ea-b0d3-48eb-875b-a5ab964f10e2
-
+# ╔═╡ 90568834-b2bd-4856-9496-1a5f8cfc191d
+prob_hist.edges[1].step
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -287,22 +355,27 @@ analysis.edges[analysis.pmax2_index]
 # ╠═e4f89e4e-6d7e-40c2-9ce0-25924dcb6fee
 # ╠═7044c2e9-cbd0-4b34-a476-3e03624a730c
 # ╠═e5c455d4-6313-48ad-a2ba-e72b119429fe
+# ╠═d7f7458a-a23e-4fe9-872f-1c88efe47c5c
 # ╠═1dbb9c49-a92c-4f7a-87cd-72817cbb99cb
-# ╟─3ce29b12-01f6-48c6-95e6-233b2109d55f
 # ╠═1572f0e7-f6cc-424f-8292-0ee3d9b2f77d
 # ╠═b277b495-5381-4591-af60-89ccc8aa80f6
-# ╠═b22ddb25-23a9-4a3c-80a7-5b8984a95c1d
+# ╠═04dbc378-3548-4d7b-bb65-f9317c093195
 # ╠═43f2d875-7e65-4e95-ae13-01c606180bcd
+# ╠═1f91879c-73cf-4575-b83d-fea8252e07bd
+# ╠═52e04747-9111-427f-9dc1-4f33640c8eef
+# ╠═a5a2e939-8017-416e-9efe-5955ec467398
+# ╠═c5c4380d-90b8-4ae4-826f-b687b08e30df
 # ╠═1a751b4a-16a8-4270-9e4f-54c200b0a844
 # ╟─3f81e4ec-8f4c-41de-be8e-ceef9ba69125
 # ╠═b9479dd4-a894-4c02-857f-facbfae2ab0e
 # ╠═8389df5c-2efe-47f6-8a9c-6e2a230b2b4f
 # ╟─471b5827-a5cc-4cf0-9134-62b77750d473
 # ╠═f66d33ae-2c3e-4661-84fe-8de5a29ae533
-# ╠═a2bb9e0a-0566-468a-a4c9-81e6cbe00d86
 # ╠═bd9f4e7c-0069-4b61-bd71-4e149c1f6aff
 # ╠═47620f98-a1b9-4d39-9911-26c27edfe4bf
 # ╠═02435706-2495-49ff-b313-0021cfab445a
+# ╠═69406039-4a56-4163-b500-c13ad6618520
+# ╠═9bae896a-a583-4fd9-8cc7-2b32ff748820
 # ╟─fef2cc53-d97a-4695-ac71-2caae03922d5
 # ╠═18a20f62-284b-42ca-bad3-ebef333cfda8
 # ╠═a61b3892-d50e-46ed-8a04-fcbe1f11e43e
@@ -311,6 +384,7 @@ analysis.edges[analysis.pmax2_index]
 # ╠═a93aabed-114e-48a9-a322-f16579fd19f5
 # ╠═0e60f2af-655f-4079-915f-656179159d08
 # ╠═090447a8-0469-4199-a2b5-f898e44e40c3
+# ╠═10720e98-1f90-4cbd-b373-5d21b8729c58
 # ╟─5123c61b-7049-4af9-b2db-2800414e3ad2
 # ╟─e1010167-91af-4670-bef4-3b2824789aec
 # ╟─94dc7848-5852-4f9f-b7d7-1907aba39305
@@ -327,6 +401,6 @@ analysis.edges[analysis.pmax2_index]
 # ╠═512bfa00-d3e9-4eae-8d40-403dd96d17c8
 # ╠═f5e05604-8937-4464-9349-be372d62f467
 # ╠═1d8c4a52-ed04-4035-a2be-887e457368bc
-# ╠═680205e3-6e81-479f-a874-52818ffa2839
-# ╠═bcac04d9-c138-49eb-b42c-a16f21461e43
-# ╠═e56f88ea-b0d3-48eb-875b-a5ab964f10e2
+# ╠═f8e01ec8-08aa-4ea2-b2e1-2233f6f1cffe
+# ╠═a16c263c-7439-49f0-86ad-dc772de5814c
+# ╠═90568834-b2bd-4856-9496-1a5f8cfc191d
