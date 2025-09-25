@@ -387,6 +387,9 @@ begin
 	plot(hist_plot, thresh_hist_plot, layout=(1, 2);  size=(1280, 640))
 end
 
+# ╔═╡ fcae6aa3-883d-4a8c-953c-932d7fa18c38
+histogram_of_data.edges[1].step.hi
+
 # ╔═╡ Cell order:
 # ╟─166394a2-736c-11f0-3403-4397f75a1ff3
 # ╠═69b97b3d-80dd-41a6-b434-fd26fc2a6e39
@@ -451,3 +454,4 @@ end
 # ╠═b481ea32-5734-4d7e-bc9a-37ea096613e7
 # ╠═aada4997-af33-4707-8920-f6a72b681501
 # ╠═da6677d0-5230-4350-9e37-26611daf4351
+# ╠═fcae6aa3-883d-4a8c-953c-932d7fa18c38
