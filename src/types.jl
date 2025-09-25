@@ -299,6 +299,7 @@ struct MikaMethodOutput <: MethodOutput
     noise::Noise
     threshold::ThresholdWidth
     noise_mse::Float32
+    history_of_noise::Union{Dict{String, Vector{Tuple{Noise, ThresholdWidth, Float32}}}, Nothing}
 end
 
 breakpoints(optimized_data::MikaMethodOutput) = optimized_data.breakpoints

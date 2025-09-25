@@ -207,6 +207,9 @@ function get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::F
     data_size = data_size == 0 || data_size > N ? N : data_size
     max_time = data_size*Δt
     Y = y[findall(t -> t <= max_time, cumsum(y))]
+    if isempty(Y)
+        Y = [max_time]
+    end
     data = Dict("x" => x[1:data_size], "dwell times" => Y)
     data
 end

@@ -245,7 +245,7 @@ md"""
 # ╔═╡ 3329d47a-f758-4d6e-84bc-dab7ee93b786
 begin
 	method = MikaMethod()
-	optimized_data = calculate_method(normalized_data, method, Δt)
+	optimized_data = mika_method(normalized_data, Δt, method, true)
 	# method_function(method)
 end
 
@@ -326,12 +326,6 @@ begin
 	approx_idealization = Vector{UInt8}(mapped)
 end
 
-# ╔═╡ 41e70cb6-edb5-4b6e-8c00-6c397e827ed8
-approx_idealization
-
-# ╔═╡ 76d56933-a3e1-41f0-b786-74cf9bce01a6
-optimized_data.idealized_data
-
 # ╔═╡ 65182740-c716-4dd3-9d40-9c72e90e07d1
 accuracy = accuracy_of_idealization(actual_data_idealization, approx_idealization)
 
@@ -346,6 +340,52 @@ mean_error_output = mean_error(MikaMethod(UInt16(100)), Δt, UInt32(225000), tru
 #=╠═╡
 dicts_to_dataframes(mean_error_output...)
   ╠═╡ =#
+
+# ╔═╡ 1ce94454-3561-467a-b958-3656d2d757d7
+optimized_data.history_of_noise
+
+# ╔═╡ 391e91e7-60fe-4654-92e2-562e8bc02052
+begin
+	noise_history = []
+	for (time, noise_vec) in optimized_data.history_of_noise
+		append!(noise_history, noise_vec)
+	end
+	sort!(noise_history, by = x -> x[3])
+end
+
+# ╔═╡ abe552bc-1e2e-4971-a9f9-8065f36dec16
+N = length(noise_history)
+
+# ╔═╡ b481ea32-5734-4d7e-bc9a-37ea096613e7
+@bind t Clock(max_value=N, repeat=false)
+
+# ╔═╡ da6677d0-5230-4350-9e37-26611daf4351
+function show_threshold_history_on_plot(data_histogram::IonChannel.Histogram, histogram_analysis::HistPeakAnalysis, threshold::ThresholdWidth)
+	plt = IonChannel.bar(data_histogram, label="Histogram (density)", alpha=0.5, title="Histogram of data with analysis")
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.left_peak_index]], label="Left maximum", lw=2)
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.right_peak_index]], label="Right maximum", lw=2)
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.pmin_index]], label="minimum")
+	IonChannel.vline!([threshold.threshold_centre], label="threshold centre", lw=2)
+	IonChannel.vline!([threshold.x₁], label="x1", linewidth=2)
+	IonChannel.vline!([threshold.x₂], label="x2", linewidth=2)
+	plt
+end
+
+# ╔═╡ aada4997-af33-4707-8920-f6a72b681501
+begin
+	n_dat = noise_history[t][1]
+	noise = n_dat.ξ
+	noise_dist = IonChannel.Normal(n_dat.μ, n_dat.σ)
+	
+	hist_plot = IonChannel.histogram(noise, title="Noise histogram. Noise MSE=$(noise_history[t][3])", normalize=true, label="Histogram", alpha=0.5);
+	mn, mx = extrema(noise)
+	line_range = mn:0.01:mx
+	plot!(line_range, IonChannel.pdf(noise_dist, line_range), label="Noise fitted PDF", lw=3, color=:red);
+
+	thresh_hist_plot = show_threshold_history_on_plot(probability_histogram, histogram_analysis, noise_history[t][2]);
+
+	plot(hist_plot, thresh_hist_plot, layout=(1, 2);  size=(1280, 640))
+end
 
 # ╔═╡ Cell order:
 # ╟─166394a2-736c-11f0-3403-4397f75a1ff3
@@ -402,8 +442,12 @@ dicts_to_dataframes(mean_error_output...)
 # ╠═dd0870d6-f5a4-4127-998e-5e150e020535
 # ╠═0929eed9-6e3c-4664-8d06-da8b773a09bb
 # ╠═c499a81b-b29a-4dfe-a6d0-e18f3f3443e0
-# ╠═41e70cb6-edb5-4b6e-8c00-6c397e827ed8
-# ╠═76d56933-a3e1-41f0-b786-74cf9bce01a6
 # ╠═65182740-c716-4dd3-9d40-9c72e90e07d1
 # ╠═534bc421-21d8-44d3-babc-f441ccb523cf
 # ╠═960fd8ff-770e-486f-a317-107545f25b1e
+# ╠═1ce94454-3561-467a-b958-3656d2d757d7
+# ╠═391e91e7-60fe-4654-92e2-562e8bc02052
+# ╠═abe552bc-1e2e-4971-a9f9-8065f36dec16
+# ╠═b481ea32-5734-4d7e-bc9a-37ea096613e7
+# ╠═aada4997-af33-4707-8920-f6a72b681501
+# ╠═da6677d0-5230-4350-9e37-26611daf4351

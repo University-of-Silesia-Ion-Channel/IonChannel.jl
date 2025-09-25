@@ -246,8 +246,6 @@ md"""
 # ╔═╡ e1010167-91af-4670-bef4-3b2824789aec
 md"""
 Tolerance: $(@bind δ_ Slider(0.0:0.01:2.0; default=0.0, show_value=true))
-
-Detection parameter: $(@bind λ_ Slider(0.0:0.01:10.0; default=1.0, show_value=true))
 """
 
 # ╔═╡ 90e2c2e2-652e-492f-beb1-58462466c98c
@@ -269,7 +267,7 @@ m = MeanDeviationMethod(δ_)
 # ╔═╡ 99f08837-ddcd-4eb3-9550-3aff9f257e8c
 begin
 	method_output = calculate_method(normalized_data, m, Δt)
-	mean²error, h_dwell_times, h_dwell_times_approx = calculate_mean_square_error(data, method_output.dwell_times_approx, dt_bins)
+	mean²error, h_dwell_times, h_dwell_times_approx = calculate_mean_square_error(data, method_output.dwell_times_approx)
 end
 
 # ╔═╡ 3f81e4ec-8f4c-41de-be8e-ceef9ba69125
@@ -328,15 +326,6 @@ md"""
 Mean squared error $(mean²error)
 """
 
-# ╔═╡ 512bfa00-d3e9-4eae-8d40-403dd96d17c8
-# ╠═╡ disabled = true
-#=╠═╡
-mean_error(m, Δt, UInt32(225000), true)
-  ╠═╡ =#
-
-# ╔═╡ f5e05604-8937-4464-9349-be372d62f467
-data["x"]
-
 # ╔═╡ 1d8c4a52-ed04-4035-a2be-887e457368bc
 begin
 	hist = histogram_calculator(data["x"], Int16(100))
@@ -346,6 +335,21 @@ end
 
 # ╔═╡ a16c263c-7439-49f0-86ad-dc772de5814c
 plot(prob_hist)
+
+# ╔═╡ a2378583-c520-4b38-a662-372a7594fc72
+
+
+# ╔═╡ b92b0a30-db79-4361-865c-8a55e28852e9
+begin
+	dwell_times_distrib = IonChannel.fit(IonChannel.Exponential, data["dwell times"])
+	plotrange = 0.0:0.001:maximum(vcat(data["dwell times"], method_output.dwell_times_approx))
+	plot(plotrange, IonChannel.pdf(dwell_times_distrib, plotrange))
+	dwell_times_approx_distrib = IonChannel.fit(IonChannel.Exponential, method_output.dwell_times_approx)
+	plot!(plotrange, IonChannel.pdf(dwell_times_approx_distrib, plotrange))
+end
+
+# ╔═╡ ce812831-0e6e-4663-9bdd-d1fd26b5b81e
+m2e = sum((IonChannel.pdf(dwell_times_distrib, plotrange) - IonChannel.pdf(dwell_times_approx_distrib, plotrange)).^2) / length(plotrange)
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -362,7 +366,7 @@ plot(prob_hist)
 # ╠═43f2d875-7e65-4e95-ae13-01c606180bcd
 # ╠═1f91879c-73cf-4575-b83d-fea8252e07bd
 # ╠═52e04747-9111-427f-9dc1-4f33640c8eef
-# ╠═a5a2e939-8017-416e-9efe-5955ec467398
+# ╟─a5a2e939-8017-416e-9efe-5955ec467398
 # ╠═c5c4380d-90b8-4ae4-826f-b687b08e30df
 # ╠═1a751b4a-16a8-4270-9e4f-54c200b0a844
 # ╟─3f81e4ec-8f4c-41de-be8e-ceef9ba69125
@@ -397,7 +401,8 @@ plot(prob_hist)
 # ╠═218d6150-eb02-4edb-84fa-0579bd539e5e
 # ╠═3b891242-97c6-4bfe-b4e2-bdb72639a688
 # ╟─405c80b1-d86f-4139-acb8-57bb04513573
-# ╠═512bfa00-d3e9-4eae-8d40-403dd96d17c8
-# ╠═f5e05604-8937-4464-9349-be372d62f467
 # ╠═1d8c4a52-ed04-4035-a2be-887e457368bc
 # ╠═a16c263c-7439-49f0-86ad-dc772de5814c
+# ╠═a2378583-c520-4b38-a662-372a7594fc72
+# ╠═b92b0a30-db79-4361-865c-8a55e28852e9
+# ╠═ce812831-0e6e-4663-9bdd-d1fd26b5b81e

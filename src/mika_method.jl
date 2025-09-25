@@ -274,10 +274,12 @@ function noise_test(noise::Noise)::Float32
     batch_size = 50
     num_batches = div(length(noise_data(noise)), batch_size)
     pvals = Float32[]
+    swc = HypothesisTests.shapiro_wilk_coefs(batch_size) # precompute coeffs for speed
 
     for i in 1:num_batches
         batch = noise_data(noise)[(i-1)*batch_size+1:i*batch_size]
-        test = ShapiroWilkTest(batch)
+        HypothesisTests.shapiro_wilk_coefs
+        test = ShapiroWilkTest(batch, swc)
         push!(pvals, pvalue(test))
     end
 
@@ -320,7 +322,7 @@ println("Breakpoints: ", breakpoints(result))
 println("Noise MSE: ", noise_mse(result))
 ```
 """
-function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::MikaMethodOutput
+function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod, with_vis::Bool=false)::MikaMethodOutput
     histogram_of_data = histogram_calculator(data)
     prob_hist = calculate_probability_histogram(histogram_of_data)
     hist_analysis = analyze_histogram_peaks(prob_hist)
@@ -347,6 +349,12 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     initial_threshold = threshold
     initial_best_noise_mse = best_noise_mse
 
+    history_of_noise = Dict{String, Vector{Tuple{Noise, ThresholdWidth, Float32}}}()
+    # history_of_threshold = Dict()
+    if with_vis
+        history_of_noise["initial"] = [(initial_noise, initial_threshold, initial_best_noise_mse)]
+    end
+
     max_left = sum(hist_analysis.weights[hist_analysis.left_peak_index:hist_analysis.pmin_index])
     max_right = sum(hist_analysis.weights[hist_analysis.pmin_index:hist_analysis.right_peak_index])
     if max_left > max_right
@@ -362,6 +370,9 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     # optimize the threshold
     previous_noise_mse = noise_mse
     # @info "Initial noise MSE: $noise_mse"
+    if with_vis
+        history_of_noise["threshold"] = []
+    end
     for min_ind in hist_analysis.pmin_index+step:step:peak_index_to_go_to
         hist_analysis.pmin_index = min_ind
         threshold = get_threshold_width(hist_analysis, Float32(0.0))
@@ -371,7 +382,7 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
         idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
         noise_ = noise(data, idealized_data)
         noise_mse = noise_test(noise_)
-
+        
         if noise_mse > best_noise_mse
             best_centre_index = min_ind
             best_threshold = threshold
@@ -380,11 +391,14 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
             best_noise_mse = noise_mse
             best_idealized_data = idealized_data
             breakpoints, dwell_times_approx = temp_breakpoints, temp_dwell_times_approx
+            if with_vis
+                push!(history_of_noise["threshold"], (best_noise, best_threshold, best_noise_mse))
+            end
         end
     end
 
     # checking only centre because other values are the same
-    if best_threshold.threshold_centre == threshold.threshold_centre
+    if best_threshold.threshold_centre == initial_threshold.threshold_centre
         best_centre_index = hist_analysis.pmin_index
         best_threshold = initial_threshold
         breakpoints = initial_breakpoints
@@ -398,14 +412,17 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
     hist_analysis.pmin_index = best_centre_index
     # @info "Starting fine-tuning of ϵ"
     # @info "Best noise MSE after histogram edge optimization: $best_noise_mse at threshold centre = $(best_threshold.threshold_centre)"
+    if with_vis
+        history_of_noise["ϵ"] = []
+    end
     for ϵ::Float32 in 0.01:0.01:0.2
-        
         threshold = get_threshold_width(hist_analysis, ϵ)
         temp_breakpoints, temp_dwell_times_approx = calculate_approximation(data_with_times, threshold)
 
         idealized_data = idealize_data(data, temp_dwell_times_approx, hist_analysis, Δt)
         noise_ = noise(data, idealized_data)
         noise_mse = noise_test(noise_)
+        
         # @info "Noise MSE: $noise_mse at ϵ = $ϵ"
         if noise_mse > best_noise_mse
             # @info "New best noise MSE: $noise_mse at ϵ = $ϵ"
@@ -415,7 +432,10 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod)::M
             best_noise_mse = noise_mse
             best_idealized_data = idealized_data
             breakpoints, dwell_times_approx = temp_breakpoints, temp_dwell_times_approx
+            if with_vis
+                push!(history_of_noise["ϵ"], (best_noise, best_threshold, best_noise_mse))
+            end 
         end
     end
-    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse)
+    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse, history_of_noise)
 end
