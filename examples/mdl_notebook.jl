@@ -299,7 +299,7 @@ Pickle data has way less activity than experimental data (i.e the channel change
 """
 
 # ╔═╡ d0a1be63-d41e-4f3b-9a79-e1c8fc1b2668
-IonChannel.histogram(data["x"])
+plot(IonChannel.histogram_calculator(data["x"]))
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b

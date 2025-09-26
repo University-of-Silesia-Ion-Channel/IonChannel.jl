@@ -86,13 +86,14 @@ function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :
 end
 
 """
-histogram_calculator(data::Vector{Float32}, bins::Int16=-1) -> Histogram
+histogram_calculator(data::Vector{Float32}, bins::Int16=-1, edges::Tuple=()) -> Histogram
 
-Compute a histogram of the given data vector with Freedman-Diaconis binning or a specified number of bins.
+Compute a histogram of the given data vector with Freedman-Diaconis binning or a specified number of bins, or using provided bin edges. 
 
 # Arguments
 - `data::Vector{Float32}`: A vector of floating-point numbers representing the data to histogram.
 - `bins::Int16` (optional, default=-1): Number of bins to divide the data range into. If set to -1, the Freedman-Diaconis rule is used to determine the optimal number of bins.
+- `edges::Tuple` (optional, default=()): A tuple containing a single vector of bin edges. If provided, this overrides the `bins` parameter and uses the specified edges for binning.
 
 # Returns
 - `Histogram`: A `Histogram` object (from `StatsBase.jl`) representing the frequency distribution
@@ -119,7 +120,7 @@ println(hist.edges) # Bin edges
 - The bins are equally spaced between the minimum and maximum data values.
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
-function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: Histogram
+function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1), edges::Tuple=()) :: Histogram
     extrema_of_data = extrema(data)
     min_data = extrema_of_data[1]
     max_data = extrema_of_data[2]
@@ -128,11 +129,20 @@ function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: 
         histogram_of_data = fit(Histogram, data, edges)
         return histogram_of_data
     end
+    if !(isempty(edges))
+        histogram_of_data = fit(Histogram, data, edges[1])
+        return histogram_of_data
+    end
     IQR::Float32 = iqr(data)
 	n::UInt32 = length(data)
 	bin_width::Float32 = 2.0 * (IQR/∛n)
-	number_of_bins = round(Int, (max_data - min_data) / bin_width)
-	histogram_of_data = fit(Histogram, data, nbins= number_of_bins)
+    number_of_bins::UInt16 = 0
+    if bin_width == 0.0
+	    number_of_bins = UInt16(1)
+    else
+	    number_of_bins = round(UInt16, (max_data - min_data) / bin_width)
+    end
+	histogram_of_data = fit(Histogram, data, nbins = number_of_bins)
     histogram_of_data
 end
 
@@ -183,10 +193,10 @@ A structure bundling bin edges, weights, indices and values for the two main pea
 
 # Description
 This function examines the provided histogram to determine the location and values of:
-- The left maximum (`pmax1`)
-- Its left index (`pmax1_index`)
-- The right maximum (`pmax2`)
-- Its right index (`pmax2_index`)
+- The left maximum (`left_peak_val`)
+- Its left index (`left_peak_index`)
+- The right maximum (`right_peak_val`)
+- Its right index (`right_peak_index`)
 - The midpoint index between the two maxima
 - The minimum value (`pmin`) found between those peaks (used for thresholding)
 All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.

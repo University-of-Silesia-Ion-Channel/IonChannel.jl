@@ -24,7 +24,7 @@ A Julia module for advanced idealization and analysis of ion channel single-mole
 - Noise and Fit Evaluation:
   - Residual modeling and statistics with [`Noise`](@ref) and [`noise_data`](@ref).
   - Dwell-time distribution comparison via [`calculate_mean_square_error`](@ref) (returns MSE and histograms).
-  - End-to-end benchmark across datasets with [`mean_error`](@ref) (returns [`MeanError`](@ref)).
+  - End-to-end benchmark across datasets with [`mean_error_txt`](@ref) for txt files and [`mean_error_pickle`](@ref) for pickle files (of Dict{String, Vector{Float}}).
 
 - Visualization:
   - Overlay exact vs. approximated breakpoints and thresholds: [`show_approx_on_plot`](@ref).
@@ -46,7 +46,7 @@ A Julia module for advanced idealization and analysis of ion channel single-mole
    Visualize results using [`show_approx_on_plot`](@ref), [`show_threshold_on_plot`](@ref), and [`plot_idealization_representation`](@ref).
 
 5. Noise and Evaluation:
-   Quantify residuals with [`noise_data`](@ref) and evaluate dwell-time fit via [`calculate_mean_square_error`](@ref); assess full-run performance with [`mean_error`](@ref).
+   Quantify residuals with [`noise_data`](@ref) and evaluate dwell-time fit via [`calculate_mean_square_error`](@ref); assess full-run performance with [`mean_error_txt`](@ref) or [`mean_error_pickle`](@ref).
 
 ## Extending the Module
 
@@ -60,7 +60,6 @@ To add a new idealization method:
 - Abstractions: [`IdealizationMethod`](@ref), [`MethodOutput`](@ref)
 - Methods and outputs: [`MeanDeviationMethod`](@ref), [`MeanDeviationMethodOutput`](@ref); [`MikaMethod`](@ref), [`MikaMethodOutput`](@ref); [`NaiveMethod`](@ref), [`NaiveMethodOutput`](@ref); [`MDLMethod`](@ref), [`MDLMethodOutput`](@ref); [`DeepChannelMethod`](@ref), [`DeepChannelMethodOutput`](@ref)
 - Analysis helpers: [`HistPeakAnalysis`](@ref), [`ThresholdWidth`](@ref), [`Noise`](@ref), [`Point`](@ref), [`Line`](@ref)
-- Evaluation aggregates: [`MeanError`](@ref)
 
 ## Selected API (canonical names)
 
@@ -88,7 +87,8 @@ To add a new idealization method:
 - Evaluation and reconstruction:
   - `calculate_mean_square_error(data::Dict, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=100) -> (mse::Float32, hist_data::Histogram, hist_approx::Histogram)`
   - `accuracy_of_idealization(actual::Vector{UInt8}, approx::Vector{UInt8}) -> Float32`
-  - `mean_error(method::IdealizationMethod, t::Float32, data_size::UInt32, verbose::Bool=false) -> MeanError`
+  - `mean_error_txt(method::IdealizationMethod, t::Float32, data_size::UInt32, verbose::Bool=false)`
+  - `mean_error_pickle(method::IdealizationMethod, t::Float32, data_size::UInt32, verbose::Bool=false)`
   - `actual_idealize_data(data::Dict, what_first_dict::Dict{String,Int64}, file_name::AbstractString, t::Float32) -> Vector{UInt8}`
   - `idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32}, hist::HistPeakAnalysis, t::Float32) -> Vector{Float32}`
   - `create_idealizations(data_folder::String, t::Float32=1e-4f0) -> Dict{String,Vector{Int8}}`
@@ -188,7 +188,6 @@ module IonChannel
     NaiveMethod,
     NaiveMethodOutput,
     naive_method,
-    MeanError,
     accuracy_of_idealization,
     actual_idealize_data,
     detect_single_breakpoint,

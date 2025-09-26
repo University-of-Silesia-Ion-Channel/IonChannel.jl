@@ -10,7 +10,7 @@ This allows code like `calculate_method(data, m, Δt)` to work for any
 method_function(::MeanDeviationMethod) = deviation_from_mean_method
 
 """
-    deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) -> Vector{Float32}
+    deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_method::MeanDeviationMethod) -> MeanDeviationMethodOutput
 
 Estimate dwell times by detecting deviations from a running mean.
 
@@ -20,7 +20,10 @@ Estimate dwell times by detecting deviations from a running mean.
 - `m::MeanDeviationMethod` - Parameters container; provides `m.δ`.
 
 # Returns
-- `Vector{Float32}` - Estimated dwell times in seconds.
+- `MeanDeviationMethodOutput` - Container with:
+  - `breakpoints::Vector{Float32}` - Times of state changes.
+  - `dwell_times::Vector{Float32}` - Durations of each dwell segment.
+  - `idealized_data::Vector{Int}` - Idealized state sequence (0/1).
 
 # Algorithm
 1. Start with the first value as the mean.

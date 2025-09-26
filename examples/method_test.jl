@@ -98,7 +98,7 @@ begin
 	elseif data_type == "pickle"
 		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
 		path_dwell_times = ""
-		data_filenames = cd(readdir, path_data)[2:2:end];
+		data_filenames = cd(readdir, path_data);
 	end
 end;
 
@@ -198,20 +198,20 @@ begin
 	# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
 	methods_txt = [MDLMethod(UInt16(2), Float32(0.8)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
 	methods_pickle = methods_txt
-	methods_pickle[1] = MDLMethod(UInt16(300), Float32(0.8))
+	methods_pickle[1] = MDLMethod(UInt16(100), Float32(0.8))
 end
 
 # ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
 # ╠═╡ disabled = true
 #=╠═╡
 begin
-	error_outputs = Dict([])
+	error_outputs_txt = Dict([])
 	for method in methods_txt
 		@info "using $(method)"
-		m_table, m_acc, m_error = mean_error_txt(method, Δt, UInt32(1000), true)
-		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
+		m_table, m_acc, m_error = mean_error_txt(method, Δt, UInt32(5000), false)
+		error_outputs_txt[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
 	end
-	error_outputs
+	error_outputs_txt
 end
   ╠═╡ =#
 
@@ -222,14 +222,109 @@ begin
 	error_outputs = Dict([])
 	for method in methods_pickle
 		@info "using $(method)"
-		m_table, m_acc, m_error = mean_error_pickle(method, Δt, UInt32(50000), true)
-		error_outputs[string(split(string(typeof(method)), '.')[end])] = dicts_to_dataframes(m_table, m_acc, m_error)
+		m_table, m_acc, m_error = mean_error_pickle(method, Δt, UInt32(225000), true)
+		error_outputs[string(split(string(typeof(method)), '.')[end])] = (m_table, m_acc, m_error)
 	end
 	error_outputs
 end
   ╠═╡ =#
 
+# ╔═╡ 946919c5-db55-4357-a57a-ae205e7f05e4
+function vector_dict_to_df(d::Dict{String,Vector{Float32}})
+	# Determine maximum length among all vectors
+	maxlen = isempty(d) ? 0 : maximum(length.(values(d)))
+	# Build a NamedTuple of columns with element type Union{Missing,Float32}
+	cols = (; (Symbol(k) => Union{Missing,Float32}[ i <= length(v) ? v[i] : missing
+											for i in 1:maxlen ]
+				for (k, v) in d)...)
+	DataFrame(cols)
+end
+
+# ╔═╡ 642fd764-2e35-435e-b553-d6f2afc6265a
+#=╠═╡
+begin
+	
+	df_errors = Dict()
+	df_accuracies = Dict()
+	df_final_summary = Dict()
+	for (method, method_error) in error_outputs
+		# @info "$method"
+		full_table, mean_accuracies, mean_errors = method_error
+		# @info "$(full_table)"
+		# @info "$(keys(mean_errors))"
+		temp_df_error = Dict()
+		temp_df_accuracy = Dict()
+		temp_df_summary = Dict()
+		for pickle_type in keys(mean_errors)
+			# save 
+			temp_df_error[pickle_type] = vector_dict_to_df(full_table["errors"][pickle_type])
+			temp_df_accuracy[pickle_type] = vector_dict_to_df(full_table["accuracies"][pickle_type])
+			noise_levels = collect(keys(mean_accuracies[pickle_type]))
+			df_summary = DataFrame(
+				noise_level = noise_levels,
+				mean_error = Float32[ mean_errors[pickle_type][n] for n in noise_levels ],
+				mean_accuracy = Float32[ get(mean_accuracies[pickle_type], n, NaN32) for n in noise_levels ],
+			)
+			temp_df_summary[pickle_type] = df_summary
+		end
+		df_errors[method] = temp_df_error
+		df_accuracies[method] = temp_df_accuracy
+
+		df_final_summary[method] = temp_df_summary
+		# full table
+		# errors/accuracies -> pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	
+		# mean_accuracies
+		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	
+		# mean_errors
+		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+		
+	end
+end
+  ╠═╡ =#
+
+# ╔═╡ 45496c71-959e-451a-aa2f-b91263535cd9
+#=╠═╡
+df_accuracies
+  ╠═╡ =#
+
+# ╔═╡ 178e295d-fb7a-4e09-bc81-eccde9e8c386
+#=╠═╡
+df_errors
+  ╠═╡ =#
+
+# ╔═╡ 6159272b-fd43-4dc9-bb2f-bceba7329003
+#=╠═╡
+df_final_summary
+  ╠═╡ =#
+
+# ╔═╡ efe8289b-4b3d-4a8d-9f82-cdd8e8a8dd34
+# ╠═╡ disabled = true
+#=╠═╡
+for dir in keys(df_errors)
+	# @info "$dir"
+	for pickle_type in keys(df_errors[dir])
+		# @info "$pickle_type"
+		try
+			mkdir("../outp/$(dir)")
+		catch e
+			println("Directory already exists")
+		end
+		try
+			mkdir("../outp/$(dir)/$(pickle_type)")
+		catch e
+			println("Directory already exists")
+		end
+		CSV.write("../outp/$(dir)/$(pickle_type)/errors.csv", df_errors[dir][pickle_type])
+		CSV.write("../outp/$(dir)/$(pickle_type)/accuracies.csv", df_accuracies[dir][pickle_type])
+		CSV.write("../outp/$(dir)/$(pickle_type)/mean_errors_and_accuracies.csv", df_final_summary[dir][pickle_type])
+	end
+end
+  ╠═╡ =#
+
 # ╔═╡ fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
+# ╠═╡ disabled = true
 #=╠═╡
 for filename in keys(error_outputs)
 	# mkdir("../outp/$(filename)")
@@ -242,7 +337,7 @@ end
 # ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
 begin
 	method_outputs = []
-	for method in methods
+	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
 		push!(method_outputs, calculate_method(data["x"], method, Δt))
 	end
 	method_outputs = Vector{MethodOutput}(method_outputs)
@@ -289,7 +384,7 @@ function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, meth
 
 	y3 = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
 	plot(plt1, plots..., layout=grid(length(method_outputs) + 1, 1), heights=[0.5, 0.125, 0.125, 0.125, 0.125];  size=(1280, 1280))
-	plot!(time, fill(y3, length(method_outputs) + 1), color=:red, alpha=0.7, legend=false, titlefont=font(6), dpi=500, linestyle=:dash)
+	plot!(time, fill(y3, length(method_outputs) + 1), color=:red, alpha=0.7, legend=false, titlefont=font(6), dpi=500, linestyle=:dot)
 	
 
 end
@@ -304,7 +399,7 @@ end
 # ╔═╡ a61b3892-d50e-46ed-8a04-fcbe1f11e43e
 begin
 	md"""
-	Right range index $(@bind N_right Slider(N_left:data_size; default=N_left+500, show_value=true))
+	Right range index $(@bind N_right Slider(N_left:data_size-1; default=N_left+500, show_value=true))
 	"""
 end
 
@@ -320,7 +415,7 @@ plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
 # ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
 begin
 	accuracy_table = []
-	for method in methods
+	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
 		@info "using $(method)"
 		method_output = calculate_method(data["x"], method, Δt)
 		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
@@ -385,49 +480,18 @@ method = MDLMethod(min_seg, threshold)
 # ╔═╡ 8f012c3e-d5f1-4267-a686-ee458a833a2a
 
 
-# ╔═╡ 3d501ec5-1bd0-46af-a212-b8f583776880
-# ╠═╡ disabled = true
-#=╠═╡
-begin
-	signal = Float32[]
-	for i in 1:4
-		v = (i % 2 == 0) ? 1.0f0 : 0.0f0
-		# longer segments (20 samples) with small noise to guarantee threshold crossings
-		append!(signal, v .+ 0.01f0 * randn(Float32, 20))
-	end
-	Δtt = 0.001f0
-	
-	# Naive method
-	nm = IonChannel.NaiveMethod()
-	nout = IonChannel.naive_method(signal, Δtt, nm)
-end
-  ╠═╡ =#
-
-# ╔═╡ 38d07240-efa8-46e3-9fef-ab30ae73ba30
-begin
-	# Random.seed!(1234)
-	signal = Float32[]
-	for i in 1:4
-		v = (i % 2 == 0) ? 1.0f0 : 0.0f0
-		# longer segments (20 samples) with small noise to guarantee threshold crossings
-		append!(signal, v .+ 0.01f0 * randn(Float32, 20))
-	end
-	m = IonChannel.MeanDeviationMethod(0.0f0)
-	out = IonChannel.deviation_from_mean_method(signal, 0.001f0, m)
-end
-
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
 # ╠═dbd814ae-a166-4096-a3bc-69a169aa1e5a
 # ╠═471b5827-a5cc-4cf0-9134-62b77750d473
-# ╠═da9e0281-ea18-4f4d-84fd-2022826cdb12
+# ╟─da9e0281-ea18-4f4d-84fd-2022826cdb12
 # ╠═234d65fb-c411-45a4-8cc3-3a32b4df8ec2
-# ╠═bbb40b9b-d7df-40e6-af32-57c03420583e
-# ╠═07583db4-1eba-4084-9a65-0b31173f37d9
+# ╟─bbb40b9b-d7df-40e6-af32-57c03420583e
+# ╟─07583db4-1eba-4084-9a65-0b31173f37d9
 # ╠═960fb302-6252-4b90-bf1f-f5d744c4c2ac
 # ╠═9f241a6f-27f2-44b5-887d-81d469294550
 # ╠═1599b194-dfb4-4f3e-bc4b-c62857f74a54
-# ╠═e336e5e0-94a9-4093-8969-276ae308988f
+# ╟─e336e5e0-94a9-4093-8969-276ae308988f
 # ╠═61740328-3bbe-4a40-ad22-5dc1b9e1eb76
 # ╠═c85c05ff-21e9-44de-b908-72a8864abec0
 # ╠═8d1de076-505d-4b09-abd4-579d9f3d91ba
@@ -445,12 +509,18 @@ end
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═18d40559-432e-43d9-9027-7efcbc681a7d
 # ╠═d3d9a860-61e4-48aa-8bb2-f7adde600f51
+# ╠═946919c5-db55-4357-a57a-ae205e7f05e4
+# ╠═642fd764-2e35-435e-b553-d6f2afc6265a
+# ╠═45496c71-959e-451a-aa2f-b91263535cd9
+# ╠═178e295d-fb7a-4e09-bc81-eccde9e8c386
+# ╠═6159272b-fd43-4dc9-bb2f-bceba7329003
+# ╠═efe8289b-4b3d-4a8d-9f82-cdd8e8a8dd34
 # ╠═fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953
 # ╟─18a20f62-284b-42ca-bad3-ebef333cfda8
-# ╟─a61b3892-d50e-46ed-8a04-fcbe1f11e43e
+# ╠═a61b3892-d50e-46ed-8a04-fcbe1f11e43e
 # ╟─2cc62dc0-75d2-46a3-90c2-c3dd08c3a3e2
 # ╟─f558c3bb-a336-455b-8397-8d8e8c6707c7
 # ╠═e2c14ce0-514d-4158-8cd8-f9c417790f00
@@ -459,6 +529,4 @@ end
 # ╠═bb51a8e8-0d34-437a-b541-10d721b9ebfe
 # ╠═0fa305bd-3398-4abc-a9e8-d347d1997c36
 # ╠═c88f2283-9725-4996-ab54-745cf73e68b9
-# ╠═3d501ec5-1bd0-46af-a212-b8f583776880
-# ╠═38d07240-efa8-46e3-9fef-ab30ae73ba30
 # ╠═8f012c3e-d5f1-4267-a686-ee458a833a2a

@@ -5,21 +5,17 @@ using DataFrames
 
 
 """
-    calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=100) -> (mse::Float32, hist_data::Histogram, hist_approx::Histogram)
+    calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}) -> (mse::Float32, hist_data::Histogram, hist_approx::Histogram)
 
 # Description
-This function calculates the histograms of both the actual and approximate dwell times using the specified number of
-bins. It then normalizes these histograms to represent probability density functions (PDFs) and computes the mean squared error (MSE) between the two distributions.
-The MSE is calculated as the average of the squared differences between the corresponding bin weights of the
-two histograms.
+This function calculates the histograms of both the actual and approximate dwell times using [`histogram_calculator`](@ref). It then normalizes these histograms to represent probability density functions (PDFs) and computes the mean squared error (MSE) between the two distributions.
+The MSE is calculated as the average of the squared differences between the PDFs over a defined range, which is determined by fitting exponential distributions to both sets of dwell times and evaluating the PDFs over a finely spaced range from `0.0` to the maximum observed dwell time.
 
 # Arguments
 - `data::Dict{String, Vector{Float32}}`
     A dictionary containing at least the key `"dwell times"` with a vector of actual dwell times.
 - `dwell_times_approx::Vector{Float32}`
     A vector of approximate dwell times computed by an idealization method.
-- `dt_bins::UInt16=100`
-    Number of bins to use for histogram calculation (default is 100).
 
 # Returns
 - `mse::Float32`
@@ -40,10 +36,18 @@ println("Mean Squared Error: ", mse)
 - [`histogram_calculator`](@ref)
 - [`normalize_data`](@ref)
 """
-function calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=UInt16(100)) :: Tuple{Float32, Histogram, Histogram}
-    h_dwell_times = normalize(histogram_calculator(data["dwell times"], Int16(dt_bins)), mode=:pdf)
-    h_dwell_times_approx = normalize(histogram_calculator(dwell_times_approx, Int16(dt_bins)), mode=:pdf)
-    mean²error::Float32 = sum((h_dwell_times.weights .- h_dwell_times_approx.weights).^2) / dt_bins
+function calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}) :: Tuple{Float32, Histogram, Histogram}
+    h_dwell_times = normalize(histogram_calculator(data["dwell times"]), mode=:pdf)
+    edges = h_dwell_times.edges
+    # dt_bins = length(h_dwell_times.weights)
+    h_dwell_times_approx = normalize(histogram_calculator(dwell_times_approx, Int16(-1), edges), mode=:pdf)
+
+    # calculate mean squared error between fitted probability distribution functions 
+    # of actual and approximate dwell times - the error is calculated over the range of both distributions
+    dwell_times_distrib = fit(Exponential, data["dwell times"])
+    dwell_times_approx_distrib = fit(Exponential, dwell_times_approx)
+    range = 0.0:0.001:maximum(vcat(data["dwell times"], dwell_times_approx))
+    mean²error::Float32 = sum((pdf(dwell_times_distrib, range) - pdf(dwell_times_approx_distrib, range)) .^ 2) / length(range)
     mean²error, h_dwell_times, h_dwell_times_approx
 end
 
@@ -213,7 +217,7 @@ end
 """
     mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
 
-Compute the **average mean squared error (MSE)** across multiple datasets,
+Compute the **average mean squared error (MSE)** across multiple datasets (of txt type),
 using a specified idealization method to approximate dwell times.
 
 # Arguments
@@ -262,7 +266,7 @@ the [`IdealizationMethod`](@ref) instance and calling its stored method function
 ```
 m = MeanDeviationMethod(deviation_from_mean_method, 0.05, 0.5)
 Δt = 1e-4
-avg_mse = mean_error(m, Δt, UInt32(10000))
+avg_mse = mean_error_txt(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
@@ -321,13 +325,85 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
     table, mean_accuracy_dict, mean_error_dict
 end
 
-function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
+"""
+    mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}}
+
+Compute the **average mean squared error (MSE)** across multiple datasets (of pickle type),
+using a specified idealization method to approximate dwell times.
+
+# Arguments
+- `method::IdealizationMethod`  
+An instance of a concrete subtype of [`IdealizationMethod`](@ref),  
+such as [`MeanDeviationMethod`](@ref), which stores:
+    - The dwell-time estimation function.
+    - Method parameters (e.g. δ, λ values).
+- `Δt::Float32`  
+Sampling interval (seconds) of the recordings.
+- `data_size::UInt32`
+Number of data points to include in each dataset for MSE calculation.
+- `verbose::Bool=false`
+If `true`, prints detailed processing information for each dataset.
+
+# Returns
+- Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}} :  
+    - A dictionary with keys `"errors"` and `"accuracies"`, each mapping to another dictionary where:
+        - Keys are pickle types (as strings).
+        - Values are dictionaries mapping noise levels (`"VL"`, `"L"`, `"M"`, `"H"`, `"VH"`) to vectors of MSE or accuracy values for each dataset at that noise level.
+    - A dictionary mapping pickle types to another dictionary of noise levels and their mean accuracy across datasets.
+    - A dictionary mapping pickle types to another dictionary of noise levels and their mean MSE across datasets.
+
+# Description
+1. Uses [`read_all_file_paths`](@ref) to find all raw data and dwell time files.
+2. For each dataset:
+- Loads raw data (`x`) and actual dwell times (`y`).
+- Truncates data to desired length via [`get_specified_datapoints`](@ref).
+- Normalizes the `"x"` signal using [`normalize_data`](@ref).
+- Estimates dwell times by calling [`calculate_method`](@ref)  
+    with the normalized data, `method`, and `Δt`.
+- Computes the MSE between actual and estimated dwell times
+    via [`calculate_mean_square_error`](@ref), taking only the MSE value
+    (first element of its tuple return).
+3. Averages the per-dataset MSE values.
+
+# Notes
+- This function assumes the folder `"data"` exists and has the expected  
+subfolder structure required by [`read_all_file_paths`](@ref).
+- The helper [`calculate_method`](@ref) is responsible for interpreting  
+the [`IdealizationMethod`](@ref) instance and calling its stored method function.
+- The `"x"` and `"dwell times"` vectors are assumed to be aligned and compatible.
+- [`calculate_mean_square_error`](@ref) now returns a tuple; only the first element is used.
+
+# Example
+```
+m = MeanDeviationMethod(deviation_from_mean_method, 0.05, 0.5)
+Δt = 1e-4
+avg_mse = mean_error_pickle(m, Δt, UInt32(10000))
+println("Average MSE across datasets: ", avg_mse)
+```
+"""
+function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["pickle"]
 
-    table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
-    mean_error_dict = Dict{String, Float32}()
-    mean_accuracy_dict = Dict{String, Float32}()
+    table = Dict{String, Dict{String, Dict{String, Vector{Float32}}}}(["errors" => Dict{String, Dict{String, Vector{Float32}}}(), "accuracies" => Dict{String, Dict{String, Vector{Float32}}}()])
+    mean_error_dict = Dict{String, Dict{String, Float32}}()
+    mean_accuracy_dict = Dict{String, Dict{String, Float32}}()
+
+    function map_noise_level(data_file_path :: String) :: String
+        noise_level = parse.(Float32, join(split(split(data_file_path, "D")[end], ".")[1:2], "."))
+        if noise_level <= 0.1f0
+            return "VL"
+        elseif noise_level <= 1.0f0
+            return "L"
+        elseif noise_level <= 2.5f0
+            return "M"
+        elseif noise_level <= 5.0f0
+            return "H"
+        else 
+            return "VH"
+        end
+    end
+
     if verbose
         @info "$(what_first_file_path)"
     end
@@ -341,11 +417,12 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
             @info "Processing type $(pickle_type)"
         end
         N = length(data_paths_dict["data paths"][pickle_type])
-        temp_error = 0.0f0
-        temp_acc = 0.0f0
-        acc_table = Float32[]
-        errors_table = Float32[]
+        temp_error_dict = Dict("VL" => [0.0f0, 0], "L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+        temp_acc_dict = Dict("VL" => [0.0f0, 0], "L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+        acc_dict = Dict("VL" => Float32[], "L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
+        errors_dict = Dict("VL" => Float32[], "L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
         for i in 1:N
+            n_type = map_noise_level(data_paths_dict["data paths"][pickle_type][i])
             if verbose
                 @info "Processing file $(data_paths_dict["data paths"][pickle_type][i])"
             end
@@ -357,8 +434,9 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
             method_output = calculate_method(normalized_data, method, Δt)
 
             mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
-            temp_error += mse
-            push!(errors_table, mse)
+            temp_error_dict[n_type][1] += mse
+            temp_error_dict[n_type][2] += 1
+            push!(errors_dict[n_type], mse)
             actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths_dict["data paths"][pickle_type][i], '/')[end], Δt)
             if typeof(method_output) <: MikaMethodOutput
                 vals = sort(unique(method_output.idealized_data))
@@ -368,13 +446,25 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
                 approx_idealization = method_output.idealized_data
             end
             acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
-            push!(acc_table, acc)
-            temp_acc += acc
+            push!(acc_dict[n_type], acc)
+            temp_acc_dict[n_type][1] += acc
+            temp_acc_dict[n_type][2] += 1
         end
-        table["errors"][pickle_type] = errors_table
-        table["accuracies"][pickle_type] = acc_table
-        mean_error_dict[pickle_type] = temp_error / N
-        mean_accuracy_dict[pickle_type] = temp_acc / N
+
+        table["errors"][pickle_type] = errors_dict
+        table["accuracies"][pickle_type] = acc_dict
+        for level in keys(temp_error_dict)
+            if temp_error_dict[level][2] > 0
+                temp_error_dict[level][1] /= temp_error_dict[level][2]
+            end
+            if temp_acc_dict[level][2] > 0
+                temp_acc_dict[level][1] /= temp_acc_dict[level][2]
+            end
+        end
+        mean_error_dict[pickle_type] = Dict(level => temp_error_dict[level][1] for level in keys(temp_error_dict))
+        mean_accuracy_dict[pickle_type] = Dict(level => temp_acc_dict[level][1] for level in keys(temp_acc_dict))
+        # mean_error_dict[pickle_type] = temp_error / N
+        # mean_accuracy_dict[pickle_type] = temp_acc / N
     end
 
     table, mean_accuracy_dict, mean_error_dict

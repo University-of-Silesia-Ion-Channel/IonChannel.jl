@@ -39,67 +39,77 @@ md"""
 # ╔═╡ b8faaa19-5175-42be-9147-bd595131c200
 project_directory_files = cd(readdir, pwd())
 
-# ╔═╡ 5b955299-4e73-455b-b049-4c19c0af2bab
+# ╔═╡ 0e270caf-2f13-41dc-9e1a-aa4c09e6fca1
 md"""
 Pick data folder (has to be within the notebooks directory)
 
 $(@bind data_folder Select(project_directory_files))
 """
 
-# ╔═╡ e989640d-cc49-456b-9033-5d49375e7b9b
-voltage_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
-
-# ╔═╡ 2e6bdf37-5340-4ddd-a4ef-f0252bc3834f
+# ╔═╡ 5db88048-45c9-46b0-8df0-5fd976a9d235
 md"""
-Pick membrane voltage: $(@bind voltage Select(voltage_names))
+Pick data type:
+
+$(@bind data_type Select(["txt", "pickle"]))
 """
 
-# ╔═╡ cf12577c-4dfe-4fd9-a1fa-4091cf1a83df
-begin
-	path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-	path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+# ╔═╡ f5e97166-deba-458a-9eab-6cb505edb00a
+if data_type == "txt"
+	data_names= cd(readdir, pwd() * "/$(data_folder)/sampling/");
+elseif data_type == "pickle"
+	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
 end;
 
-# ╔═╡ 9ab4502a-4555-4931-8536-0e7d6a495c8c
-begin
-	data_filenames = cd(readdir, path_data);
-	clean_filenames = filter(
-        fname -> occursin(r"^ce\d+\.txt$", fname),
-        data_filenames
-    )
+# ╔═╡ 78e887c8-1624-4935-afaf-31aefceafe39
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
 end
 
-# ╔═╡ e2532e7b-2654-4b78-9786-ba83db187ef6
+# ╔═╡ cc7abcec-6015-478f-8aac-28e19eae526f
+begin
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data);
+	end
+end;
+
+# ╔═╡ 7f0c1415-f82c-41cb-a309-c7c5331c9c2b
 md"""
-Data file: $(@bind data_file Select(clean_filenames))
+Data file: $(@bind data_file Select(data_filenames))
 """
 
-# ╔═╡ 01c4d515-2b61-4e61-9560-ad9bb8f2d2be
+# ╔═╡ c440bfa0-dfa0-4611-9b50-0b62424ec36d
 begin
+	if data_type == "txt"
 	local dt = split(data_file, '.')
 	dt[1] = dt[1]*"dwell_timesy"
 	md"""
 	Dwell times file: $(dwell_times_file = join(dt, '.'))
 	"""
+	end
 end
 
-# ╔═╡ c4009667-2e93-44b2-82e0-81a03d9747df
+# ╔═╡ 7363bda1-58f8-494f-bf74-ed200d459ad2
 begin
-	data_file_path = path_data * data_file
-	dwell_times_path = path_dwell_times * dwell_times_file
-end;
-
-# ╔═╡ a16d98ce-e7a5-4f6d-a015-c7130df3e4dc
-x, y = read_data(data_file_path, dwell_times_path)
-
-# ╔═╡ ab4517f4-7c65-40b9-926d-bcc142fc390a
-begin
-	md"""
-	Pick how many points to idealize (1000:$(length(x)))
-	
-	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
-	"""
-	data_size = UInt32(data_size)
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
 end
 
 # ╔═╡ 84805655-173a-4155-a798-68ce2b5db049
@@ -110,9 +120,26 @@ md"""
 # ╔═╡ 04b70190-6432-4ff5-9081-4970b4ee7644
 Δt::Float32 = 1e-4
 
+# ╔═╡ 8332068f-6869-40ba-98ea-682edad0d856
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
+
+# ╔═╡ ab4517f4-7c65-40b9-926d-bcc142fc390a
+begin
+	md"""
+	Pick how many points to idealize (1000:$(length(x)))
+	
+	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
+	"""
+end
+
 # ╔═╡ a671e284-396d-497e-90d6-f00454c028f1
 begin
-	data = get_specified_datapoints(x, y, Δt, data_size)
+	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
 	normalized_data = normalize_data(data)
 	data["x"] = normalized_data
 end
@@ -156,7 +183,7 @@ end
 # ╔═╡ 9c1e5d2c-7745-4e7a-8927-c3baeb9b1bea
 begin
 	md"""
-	Right range index $(@bind N_right Slider(N_left:data_size; default=N_left+500, show_value=true))
+	Right range index $(@bind N_right Slider(N_left:data_size-1; default=N_left+500, show_value=true))
 	"""
 end
 
@@ -178,17 +205,17 @@ mean_error(DeepChannelMethod(model), Δt, UInt32(225000), true)
 # ╔═╡ Cell order:
 # ╠═e2b4a3b8-5965-430e-bc5a-4c9719c628bf
 # ╟─0de62389-9084-4025-af37-9bd80abbbb48
-# ╠═168eebad-8721-4bdd-935d-480c8de65a52
+# ╟─168eebad-8721-4bdd-935d-480c8de65a52
 # ╠═b8faaa19-5175-42be-9147-bd595131c200
-# ╠═5b955299-4e73-455b-b049-4c19c0af2bab
-# ╠═e989640d-cc49-456b-9033-5d49375e7b9b
-# ╠═2e6bdf37-5340-4ddd-a4ef-f0252bc3834f
-# ╠═cf12577c-4dfe-4fd9-a1fa-4091cf1a83df
-# ╠═9ab4502a-4555-4931-8536-0e7d6a495c8c
-# ╠═e2532e7b-2654-4b78-9786-ba83db187ef6
-# ╠═01c4d515-2b61-4e61-9560-ad9bb8f2d2be
-# ╠═c4009667-2e93-44b2-82e0-81a03d9747df
-# ╠═a16d98ce-e7a5-4f6d-a015-c7130df3e4dc
+# ╠═0e270caf-2f13-41dc-9e1a-aa4c09e6fca1
+# ╠═5db88048-45c9-46b0-8df0-5fd976a9d235
+# ╠═f5e97166-deba-458a-9eab-6cb505edb00a
+# ╠═78e887c8-1624-4935-afaf-31aefceafe39
+# ╠═cc7abcec-6015-478f-8aac-28e19eae526f
+# ╠═7f0c1415-f82c-41cb-a309-c7c5331c9c2b
+# ╠═c440bfa0-dfa0-4611-9b50-0b62424ec36d
+# ╠═7363bda1-58f8-494f-bf74-ed200d459ad2
+# ╠═8332068f-6869-40ba-98ea-682edad0d856
 # ╠═ab4517f4-7c65-40b9-926d-bcc142fc390a
 # ╠═84805655-173a-4155-a798-68ce2b5db049
 # ╠═04b70190-6432-4ff5-9081-4970b4ee7644
@@ -202,7 +229,7 @@ mean_error(DeepChannelMethod(model), Δt, UInt32(225000), true)
 # ╠═0ed9c483-8023-4891-ac65-6d239674b05c
 # ╠═e640bc2a-a823-488d-b4de-8561525bdc6f
 # ╟─5cf2cf5e-c867-4461-bb18-7437ad14d525
-# ╟─9c1e5d2c-7745-4e7a-8927-c3baeb9b1bea
+# ╠═9c1e5d2c-7745-4e7a-8927-c3baeb9b1bea
 # ╟─e904b7ce-a027-4174-8740-0bb15554b345
 # ╟─a6b856f0-345b-4905-91f2-caf9edcf5494
 # ╠═0f42c978-80a3-425b-91f2-b1b4e53d4ef2
