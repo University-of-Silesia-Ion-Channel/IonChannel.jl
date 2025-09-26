@@ -8,10 +8,8 @@ using DataFrames
     calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}) -> (mse::Float32, hist_data::Histogram, hist_approx::Histogram)
 
 # Description
-This function calculates the histograms of both the actual and approximate dwell times using the specified number of
-bins. It then normalizes these histograms to represent probability density functions (PDFs) and computes the mean squared error (MSE) between the two distributions.
-The MSE is calculated as the average of the squared differences between the corresponding bin weights of the
-two histograms.
+This function calculates the histograms of both the actual and approximate dwell times using [`histogram_calculator`](@ref). It then normalizes these histograms to represent probability density functions (PDFs) and computes the mean squared error (MSE) between the two distributions.
+The MSE is calculated as the average of the squared differences between the PDFs over a defined range, which is determined by fitting exponential distributions to both sets of dwell times and evaluating the PDFs over a finely spaced range from `0.0` to the maximum observed dwell time.
 
 # Arguments
 - `data::Dict{String, Vector{Float32}}`
@@ -219,7 +217,7 @@ end
 """
     mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
 
-Compute the **average mean squared error (MSE)** across multiple datasets,
+Compute the **average mean squared error (MSE)** across multiple datasets (of txt type),
 using a specified idealization method to approximate dwell times.
 
 # Arguments
@@ -268,7 +266,7 @@ the [`IdealizationMethod`](@ref) instance and calling its stored method function
 ```
 m = MeanDeviationMethod(deviation_from_mean_method, 0.05, 0.5)
 Δt = 1e-4
-avg_mse = mean_error(m, Δt, UInt32(10000))
+avg_mse = mean_error_txt(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
@@ -327,6 +325,62 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
     table, mean_accuracy_dict, mean_error_dict
 end
 
+"""
+    mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, ::Bool=false) -> Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}}
+
+Compute the **average mean squared error (MSE)** across multiple datasets (of pickle type),
+using a specified idealization method to approximate dwell times.
+
+# Arguments
+- `method::IdealizationMethod`  
+An instance of a concrete subtype of [`IdealizationMethod`](@ref),  
+such as [`MeanDeviationMethod`](@ref), which stores:
+    - The dwell-time estimation function.
+    - Method parameters (e.g. δ, λ values).
+- `Δt::Float32`  
+Sampling interval (seconds) of the recordings.
+- `data_size::UInt32`
+Number of data points to include in each dataset for MSE calculation.
+- `verbose::Bool=false`
+If `true`, prints detailed processing information for each dataset.
+
+# Returns
+- Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}} :  
+    - A dictionary with keys `"errors"` and `"accuracies"`, each mapping to another dictionary where:
+        - Keys are pickle types (as strings).
+        - Values are dictionaries mapping noise levels (`"VL"`, `"L"`, `"M"`, `"H"`, `"VH"`) to vectors of MSE or accuracy values for each dataset at that noise level.
+    - A dictionary mapping pickle types to another dictionary of noise levels and their mean accuracy across datasets.
+    - A dictionary mapping pickle types to another dictionary of noise levels and their mean MSE across datasets.
+
+# Description
+1. Uses [`read_all_file_paths`](@ref) to find all raw data and dwell time files.
+2. For each dataset:
+- Loads raw data (`x`) and actual dwell times (`y`).
+- Truncates data to desired length via [`get_specified_datapoints`](@ref).
+- Normalizes the `"x"` signal using [`normalize_data`](@ref).
+- Estimates dwell times by calling [`calculate_method`](@ref)  
+    with the normalized data, `method`, and `Δt`.
+- Computes the MSE between actual and estimated dwell times
+    via [`calculate_mean_square_error`](@ref), taking only the MSE value
+    (first element of its tuple return).
+3. Averages the per-dataset MSE values.
+
+# Notes
+- This function assumes the folder `"data"` exists and has the expected  
+subfolder structure required by [`read_all_file_paths`](@ref).
+- The helper [`calculate_method`](@ref) is responsible for interpreting  
+the [`IdealizationMethod`](@ref) instance and calling its stored method function.
+- The `"x"` and `"dwell times"` vectors are assumed to be aligned and compatible.
+- [`calculate_mean_square_error`](@ref) now returns a tuple; only the first element is used.
+
+# Example
+```
+m = MeanDeviationMethod(deviation_from_mean_method, 0.05, 0.5)
+Δt = 1e-4
+avg_mse = mean_error_pickle(m, Δt, UInt32(10000))
+println("Average MSE across datasets: ", avg_mse)
+```
+"""
 function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["pickle"]

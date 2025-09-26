@@ -169,7 +169,7 @@ breaks, dwell_times = calculate_approximation(pairs, thr_band)
 println("First dwell time: ", dwell_times)
 ```
 """
-function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}, threshold::ThresholdWidth)::Tuple{Vector{Float32},Vector{Float32}}
+function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}, threshold::ThresholdWidth) :: Tuple{Vector{Float32},Vector{Float32}}
     # accessor functions for point for better readability
     value(point) = point[2]
     time(point) = point[1]
@@ -299,10 +299,12 @@ The original raw signal to be idealized.
 Sampling interval in seconds.
 - `method::MikaMethod`  
 Placeholder for method because [`MikaMethod`](@ref) has no parameters. Only needed because of [`calculate_method`](@ref).
+- `with_vis::Bool=false`
+Optional flag to enable tracking of noise metrics history for visualization.
 
 # Returns
 - [`MikaMethodOutput`](@ref)  
-Comprehensive structure containing breakpoints, dwell times, idealized signal, noise statistics, and optimized thresholds.
+Comprehensive structure containing breakpoints, dwell times, idealized signal, noise statistics, optimized thresholds and optionally history of noise metrics for visualization.
 
 # Description
 This method:

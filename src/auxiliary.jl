@@ -88,7 +88,7 @@ end
 """
 histogram_calculator(data::Vector{Float32}, bins::Int16=-1, edges::Tuple=()) -> Histogram
 
-Compute a histogram of the given data vector with Freedman-Diaconis binning or a specified number of bins.
+Compute a histogram of the given data vector with Freedman-Diaconis binning or a specified number of bins, or using provided bin edges. 
 
 # Arguments
 - `data::Vector{Float32}`: A vector of floating-point numbers representing the data to histogram.
@@ -193,10 +193,10 @@ A structure bundling bin edges, weights, indices and values for the two main pea
 
 # Description
 This function examines the provided histogram to determine the location and values of:
-- The left maximum (`pmax1`)
-- Its left index (`pmax1_index`)
-- The right maximum (`pmax2`)
-- Its right index (`pmax2_index`)
+- The left maximum (`left_peak_val`)
+- Its left index (`left_peak_index`)
+- The right maximum (`right_peak_val`)
+- Its right index (`right_peak_index`)
 - The midpoint index between the two maxima
 - The minimum value (`pmin`) found between those peaks (used for thresholding)
 All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.

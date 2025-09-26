@@ -276,30 +276,6 @@ Notes:
 - Ensures each segment has at least one index; if an interval collapses, it uses the breakpoint index.
 """
 function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32) :: Tuple{Vector{UInt32}, Vector{Float32}}
-    # push!(BP, UInt32(length(data)))
-    # stepvalue = zeros(Float32, length(BP))
-    # skip::UInt32 = 1
-    # i0::UInt32 = BP[1]
-    # for k in eachindex(BP)
-    #     start::UInt32 = i0 + skip
-    #     stop::UInt32 = BP[k] - skip
-    #     if stop < start
-    #         # @info "Stop: $stop < Start: $start, adjusting to single-point segment"
-    #         start = BP[k]
-    #         stop = BP[k]
-    #     end
-    #     indices = start:stop
-    #     if length(indices) == 0
-    #         indices = Vector{UInt32}([BP[k]])
-    #     end
-    #     stepvalue[k] = mean(data[indices])
-    #     @info "Segment $k: indices $start:$stop, mean=$(stepvalue[k])"
-    #     i0 = BP[k]
-    # end
-
-    # jumps = diff(stepvalue)
-    # filtered = BP[1:end - 1][abs.(jumps) .> threshold]
-    # filtered, stepvalue
     stepvalue = Float32[]
     b_idxs = vcat(1, BP, length(data))
     prev_b_idx = b_idxs[1]
@@ -313,48 +289,40 @@ function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Floa
 end
 
 """
-    mdl_method(
+    mdl_method_part(
         data::Vector{Float32},
-        Δt::Float32,
         c_method::MDLMethod
-    ) :: MDLMethodOutput
+    ) :: Vector{UInt32}
 
-Perform MDL-based idealization by iteratively detecting and validating breakpoints,
-filtering spurious changes by step size, and constructing the idealized state sequence.
+Recursively detect candidate breakpoints in a time series using the MDL criterion.
 
-Pipeline:
-1. Iterative breakpoint search:
-   - Starting from the full range, repeatedly detect single or double breakpoints
-     (via [`detect_breaks_mdl`](@ref)) within the current segment, respecting `c_method.min_seg`.
-   - Accept and insert any proposed breakpoints that pass the MDL test.
-2. Sort and consolidate all local breakpoints.
-3. Filter by jump magnitude:
-   - Use `stepstat_mdl(data, breaks, c_method.threshold)` to remove small steps and
-     estimate segment means.
-4. Convert sample indices to time:
-   - `breakpoints = final_breaks .* Δt`.
-5. Determine initial state using a histogram-derived threshold:
-   - Estimate amplitude threshold via [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref),
-     and [`analyze_histogram_peaks`](@ref), and set initial state to 0 if `data[1] < threshold`, else 1.
-6. Build per-sample idealized sequence by alternating states across `final_breaks`.
-7. Compute dwell times as `[breakpoints[1]; diff(breakpoints)]`.
+This function implements an iterative, segment-wise search for change points,
+operating over the range `[1, length(data)]`, and checking within each segment
+for additional split points using both single- and double-breakpoint detection.
+Segmentations are only accepted if they significantly reduce the MDL score, and all
+proposed breakpoints are consolidated, sorted, and returned as sample indices.
 
-Arguments:
-- data::Vector{Float32}: Input trace to be idealized.
-- Δt::Float32: Sampling interval used to convert indices to time.
-- c_method::MDLMethod: Configuration with `min_seg`, `threshold`, and `number_of_histogram_bins`.
+### Arguments
+- `data::Vector{Float32}`: Input signal to segment and search for change points.
+- `c_method::MDLMethod`: Configuration object containing at least the `min_seg` field
+  (minimum segment length).
 
-Returns:
-- MDLMethodOutput: Contains `breakpoints` (Float32 times), `dwell_times_approx`, and `idealized_data` (UInt8 states).
+### Returns
+- `Vector{UInt32}`: Detected breakpoint sample indices (1-based), sorted, not including the last index.
 
-Notes:
-- Expects the following helpers in scope: [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref),
-  and [`analyze_histogram_peaks`](@ref) returning an object with fields `edges` and `pmin_index`.
-- State alternation assumes a two-state model (0/1) switching at each retained breakpoint.
-- If `final_breaks` is empty, ensure calling code handles empty dwell times accordingly.
+### Implementation notes
+- Starts by initializing the entire range as a candidate segment.
+- For each current segment, attempts a single breakpoint search via [`detect_breaks_mdl`](@ref) with `"full"`.
+  If no breakpoint is found, and the segment is sufficiently long, tries a double-break search (`"full_two_break"`).
+- Successfully validated breakpoints (by MDL) are accepted and the search continues recursively within new subsegments.
+- Consolidates all candidate breakpoints found, sorts, and removes the terminal endpoint before returning.
+
+### Usage example
+```
+breaks = mdl_method_part(data, MDLMethod(300, 0.8f0, 100))
+```
 """
 function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{UInt32}
-    
 	start::UInt32 = 1
 	end_::UInt32 = length(data)
     BP_local = Vector{UInt32}([end_])
@@ -395,6 +363,56 @@ function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{U
     breaks
 end
 
+"""
+    mdl_method(
+        data::Vector{Float32},
+        Δt::Float32,
+        c_method::MDLMethod
+    ) :: MDLMethodOutput
+
+Segment and idealize a univariate time series using MDL-driven breakpoint detection.
+
+This function performs bidirectional search for optimal breakpoints using
+[`mdl_method_part`](@ref) in forward and reverse directions, merges all unique
+breaks, and applies amplitude-jump filtering via [`stepstat_mdl`](@ref).
+It then reconstructs a two-state (0/1) idealized sequence, parameters such as
+breakpoint times and mean values, and estimates state dwell-times.
+
+### Pipeline
+1. **Breakpoint search**: Call [`mdl_method_part`](@ref) on `data` and its reverse.
+2. **Breakpoint consolidation**: Merge, deduplicate, and sort all break indices.
+3. **Filtering**: Remove breakpoints with sub-threshold amplitude jumps using [`stepstat_mdl`](@ref).
+4. **Thresholding**: Estimate a classification amplitude threshold from the histogram of `data`.
+5. **Idealization**: Generate a state sequence alternating between 0/1 at each surviving breakpoint, based on thresholding of the initial value.
+6. **Dwell times**: Compute per-state dwell times as intervals between breakpoints (in time units).
+
+### Arguments
+- `data::Vector{Float32}`: Input sequence (trace).
+- `Δt::Float32`: Sampling interval, used to express break times and dwell times in physical units.
+- `c_method::MDLMethod`: Configuration containing at least fields `min_seg` (minimum segment length), `threshold` (minimum step), and number of histogram bins.
+
+### Returns
+- `MDLMethodOutput`: Struct containing:
+  - `breakpoints::Vector{Float32}`: Surviving breakpoint times.
+  - `dwell_times_approx::Vector{Float32}`: Duration of each state (seconds or chosen `Δt` units).
+  - `idealized_data::Vector{UInt8}`: Idealized 0/1 state sequence.
+  - `all_breaks::Vector{Float32}`: All candidate breakpoints (pre-filtering).
+  - `step_values::Vector{Float32}`: Mean values for each segment.
+
+### Notes
+- Assumes a two-state system alternating at each detected break.
+- Returns a single dwell if no breakpoints survive filtering.
+- Depends on helper functions: [`mdl_method_part`](@ref), [`stepstat_mdl`](@ref), [`histogram_calculator`](@ref), [`calculate_probability_histogram`](@ref), and [`analyze_histogram_peaks`](@ref).
+
+### Example
+```
+c_method = MDLMethod(300, 0.8f0, 100)
+Δt = 1.0f0 # 1 sample per time unit
+result = mdl_method(data, Δt, c_method)
+println(result.breakpoints)
+println(result.dwell_times_approx)
+```
+"""
 function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
     breaks_forward = mdl_method_part(data, c_method)
     breaks_backward = (length(data) + 1) .- mdl_method_part(data[end:-1:1], c_method)

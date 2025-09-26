@@ -266,6 +266,9 @@ The threshold and its bounds used for state transition detection.
 - `noise_mse::Float32`  
 The mean squared error between the noise and its fitted normal distribution.
 
+- `history_of_noise::Union{Dict{String, Vector{Tuple{Noise, ThresholdWidth, Float32}}}, Nothing}`
+Optional history of noise and threshold values recorded during iterative optimization (if applicable).
+
 # Description
 
 [`MikaMethodOutput`](@ref) bundles all significant outputs of the Mika idealization procedure, enabling comprehensive downstream analysis and visualization.
@@ -372,6 +375,9 @@ Type describing the output of the mean deviation idealization method.
 - `dwell_times_approx::Vector{Float32}`
     The sequence of estimated dwell times between state transitions (in seconds) produced by the algorithm.
 
+- `idealized_data::Vector{UInt8}`
+    The full-length idealized state sequence (0/1) corresponding to each sample in the input data.
+    
 # Description
 
 This struct bundles the main outputs from the mean deviation idealization routine.
@@ -505,37 +511,6 @@ struct NaiveMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     breakpoints::Vector{Float32}
     idealized_data::Vector{UInt8}
-end
-
-
-"""
-    MeanError
-
-Aggregate metrics for evaluating idealization or prediction performance across
-multiple segments, traces, or runs.
-
-# Fields
-- `mean_squared_error::Float32`: The overall mean of squared errors, typically
-  averaged across all samples and/or batches.
-- `mean_accuracy::Float32`: The overall accuracy aggregated across evaluations,
-  commonly expressed as a fraction in `[0.0, 1.0]`.
-- `mean_squared_errors::Vector{Float32}`: Per-segment or per-batch MSE values
-  used to compute `mean_squared_error`.
-- `accuracies::Vector{Float32}`: Per-segment or per-batch accuracy values used
-  to compute `mean_accuracy`.
-
-# Notes
-- This struct is a convenient container when running repeated evaluations (e.g.,
-  cross-validation folds, multiple traces, or bootstrapped subsets).
-- `mean_squared_error` is typically computed from `mean(mean_squared_errors)`,
-  and `mean_accuracy` from `mean(accuracies)`, but storing all components keeps
-  downstream analysis flexible (e.g., computing variance or confidence intervals).
-"""
-struct MeanError
-    mean_squared_error::Float32
-    mean_accuracy::Float32
-    mean_squared_errors::Vector{Float32}
-    accuracies::Vector{Float32}
 end
 
 """

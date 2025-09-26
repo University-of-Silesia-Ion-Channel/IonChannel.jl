@@ -2,9 +2,9 @@ using StatsBase
 using Normalization
 
 """
-read_data(data_file_path::String, dwell_times_path::String) -> Tuple{Vector{Float32}, Vector{Float32}}
+read_data(data_file_path::String, dwell_times_path::String="") -> Tuple{Vector{Float32}, Vector{Float32}}
 
-Read numerical data from two text files and return them as vectors of `Float32`.
+Read numerical data from two text files or one pickle and return them as vectors of `Float32`.
 
 # Arguments
 - `data_file_path::String`: Path to a text file containing numerical values (one per line)
@@ -72,27 +72,29 @@ data_folder/
             ...
         <voltage2>/
             ...
+    pickles/
+        <type1>/
+            file1.pkl
+            ...
+        <type2>/
+            ... 
+    first.txt  (a reference file at the top level)
+    ...
 
 # Returns
 A tuple:
 1. `what_first_path::String` — Path to the first special file found at the top level of `data_folder`
 (taken from the 3rd entry in its directory listing).
-2. `data_file_paths::Vector{String}` — Full paths to all sampled data files across all voltages.
-3. `dwell_times_file_paths::Vector{String}` — Full paths to the corresponding dwell time files,
-in the same order as `data_file_paths`.
-
-# File matching logic
-- Data files are taken from `/sampling/<voltage>/`, selecting every second file starting at index 2.
-- Dwell time files are taken from `/dwell_times/<voltage>/`, selecting every second file starting at index 1.
-- The dwell time file names are derived from the data file names by replacing the base name
-with `<basename>dwell_timesy` and preserving the original extension.
+2. `data_file_paths::Dict{String, Vector{String}}` — A dictionary with keys `"txt"` and `"pickle"`, each mapping to a vector of full file paths for data files found in the respective subdirectories.
+3. `dwell_times_file_paths::Dict{String, Vector{String}}` — A dictionary with key `"txt"` mapping to a vector of full file paths for corresponding dwell time files
+found in the `dwell_times` subdirectories.  
 
 # Example
 ```
 what_first, data_paths, dwell_paths = read_all_file_paths("experiment_data")
 println("First reference file: ", what_first)
-println("Number of data files: ", length(data_paths))
-println("Number of dwell time files: ", length(dwell_paths))
+println("Data files: ", data_paths)
+println("Dwell time files: ", dwell_paths)
 ```
 # Notes
 - Assumes a specific directory and file naming convention.
