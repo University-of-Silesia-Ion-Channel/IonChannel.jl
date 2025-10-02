@@ -271,7 +271,7 @@ println("Average MSE across datasets: ", avg_mse)
 ```
 """
 function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
-    what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
+    what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data") # TODO: make "data" an argument
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["txt"]
 
     table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])

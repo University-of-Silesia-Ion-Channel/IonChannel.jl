@@ -2,7 +2,7 @@ using StatsBase
 using Normalization
 
 """
-read_data(data_file_path::String, dwell_times_path::String="") -> Tuple{Vector{Float32}, Vector{Float32}}
+    read_data(data_file_path::String, dwell_times_path::String="") -> Tuple{Vector{Float32}, Vector{Float32}}
 
 Read numerical data from two text files or one pickle and return them as vectors of `Float32`.
 
@@ -49,7 +49,7 @@ Tuple{Vector{Float32}, Vector{Float32}}
 end
 
 """
-read_all_file_paths(data_folder::String) -> Tuple{String, Vector{String}, Vector{String}}
+    read_all_file_paths(data_folder::String) -> Tuple{String, Vector{String}, Vector{String}}
 
 Collect and return file paths for experimental data files and their corresponding dwell time files
 from a structured folder hierarchy.

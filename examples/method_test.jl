@@ -33,6 +33,9 @@ md"""
 ## Loading necessary packages
 """
 
+# ╔═╡ bd5b1aab-8722-49f9-b299-9ac41e222203
+plotly()
+
 # ╔═╡ 471b5827-a5cc-4cf0-9134-62b77750d473
 # ╠═╡ disabled = true
 #=╠═╡
@@ -77,87 +80,8 @@ elseif data_type == "pickle"
 	data_names = cd(readdir, pwd() * ("/$(data_folder)/pickles/"));
 end;
 
-# ╔═╡ 9f241a6f-27f2-44b5-887d-81d469294550
-if data_type == "txt"
-	md"""
-	Pick membrane voltage: $(@bind voltage Select(data_names))
-	"""
-else
-	md"""
-	Pick pickle type: $(@bind pickle_sub Select(data_names))
-	"""
-end
-
-# ╔═╡ 1599b194-dfb4-4f3e-bc4b-c62857f74a54
-begin
-	if data_type == "txt"
-		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
-		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
-		data_filenames = cd(readdir, path_data)[2:2:end];
-		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
-	elseif data_type == "pickle"
-		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
-		path_dwell_times = ""
-		data_filenames = cd(readdir, path_data);
-	end
-end;
-
-# ╔═╡ e336e5e0-94a9-4093-8969-276ae308988f
-md"""
-Data file: $(@bind data_file Select(data_filenames))
-"""
-
-# ╔═╡ 61740328-3bbe-4a40-ad22-5dc1b9e1eb76
-begin
-	if data_type == "txt"
-		local dt = split(data_file, '.')
-		dt[1] = dt[1]*"dwell_timesy"
-		md"""
-		Dwell times file: $(dwell_times_file = join(dt, '.'))
-		"""
-	end
-end
-
-# ╔═╡ c85c05ff-21e9-44de-b908-72a8864abec0
-begin
-	if data_type == "txt"
-		data_file_path = path_data * data_file
-		dwell_times_path = path_dwell_times * dwell_times_file
-	else
-		data_file_path = path_data * data_file
-		dwell_times_path = ""
-	end
-end
-
-# ╔═╡ 8d1de076-505d-4b09-abd4-579d9f3d91ba
-data_file_path
-
 # ╔═╡ 47620f98-a1b9-4d39-9911-26c27edfe4bf
 Δt::Float32 = 1e-4
-
-# ╔═╡ edd4a010-6986-480b-9ec0-4d7fba52ac93
-begin
-	x, y = read_data(data_file_path, dwell_times_path)
-	if data_type == "pickle"
-		y = Δt .* y .* 1000
-	end
-end
-
-# ╔═╡ 4349a657-0eac-40e7-8b84-8696aaa3e690
-begin
-	md"""
-	Pick how many points to idealize (1000:$(length(x)))
-	
-	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
-	"""
-end
-
-# ╔═╡ 3f894fd5-2256-45a5-8ef9-039223f32014
-begin
-	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
-	normalized_data = normalize_data(data)
-	data["x"] = normalized_data
-end
 
 # ╔═╡ e6718caf-64b7-46fe-9712-48603ffb7e74
 models_path = pwd() * "/models/"
@@ -197,7 +121,7 @@ end
 begin
 	# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
 	methods_txt = [MDLMethod(UInt16(2), Float32(0.8)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
-	methods_pickle = methods_txt
+	methods_pickle = deepcopy(methods_txt)
 	methods_pickle[1] = MDLMethod(UInt16(100), Float32(0.8))
 end
 
@@ -334,105 +258,6 @@ for filename in keys(error_outputs)
 end
   ╠═╡ =#
 
-# ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
-begin
-	method_outputs = []
-	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
-		push!(method_outputs, calculate_method(data["x"], method, Δt))
-	end
-	method_outputs = Vector{MethodOutput}(method_outputs)
-end
-
-# ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
-function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
-    @assert T_left <= T_right "N_left must be less or equal to N_right"
-    @assert T_right <= (length(data["x"]) - 1) * Δt "T_right exceeds data duration"
-
-    N_left = max(1, Int(round(T_left / Δt)) + 1)
-    N_right = min(length(data["x"]), Int(round(T_right / Δt)) + 1)
-    N = N_right - N_left + 1
-
-    time = range(T_left, T_left + Δt*(N-1), length=N)
-
-	color_blue = :blue  # a clear, less saturated blue
-
-  # lighter, semi-transparent orange
-	
-	plots = []
-	for method_output in method_outputs
-	    if typeof(method_output) <: MikaMethodOutput
-			vals = sort(unique(method_output.idealized_data))
-			mapped = (method_output.idealized_data .== vals[2])
-	        y2 = mapped[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mika Method", titlefont=font(6), dpi=500))
-	    elseif typeof(method_output) <: MeanDeviationMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mean Deviation Method", titlefont=font(6), dpi=500))
-		elseif typeof(method_output) <: DeepChannelMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Deep Channel Method", titlefont=font(6), dpi=500))
-		elseif typeof(method_output) <: NaiveMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Naive Method", titlefont=font(6), dpi=500))
-		elseif typeof(method_output) <: MDLMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="MDL Method", titlefont=font(6), dpi=500))
-	    end
-	end
-    y1 = data["x"][N_left:N_right]
-	plt1 = plot(time, y1, color=:green, legend=false, title="Ion channel current plot", titlefont=font(6), dpi=500)
-
-	y3 = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
-	plot(plt1, plots..., layout=grid(length(method_outputs) + 1, 1), heights=[0.5, 0.125, 0.125, 0.125, 0.125];  size=(1280, 1280))
-	plot!(time, fill(y3, length(method_outputs) + 1), color=:red, alpha=0.7, legend=false, titlefont=font(6), dpi=500, linestyle=:dot)
-	
-
-end
-
-# ╔═╡ 18a20f62-284b-42ca-bad3-ebef333cfda8
-begin
-	md"""
-	Left range index $(@bind N_left Slider(0:data_size; default=0.0, show_value=true))
-	"""
-end
-
-# ╔═╡ a61b3892-d50e-46ed-8a04-fcbe1f11e43e
-begin
-	md"""
-	Right range index $(@bind N_right Slider(N_left:data_size-1; default=N_left+500, show_value=true))
-	"""
-end
-
-# ╔═╡ 2cc62dc0-75d2-46a3-90c2-c3dd08c3a3e2
-T_left = trunc(N_left * Δt; digits=4)
-
-# ╔═╡ f558c3bb-a336-455b-8397-8d8e8c6707c7
-T_right = trunc(N_right * Δt ;digits=4)
-
-# ╔═╡ dddebe29-e457-41f0-a548-6c31842b9953
-plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
-
-# ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
-begin
-	accuracy_table = []
-	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
-		@info "using $(method)"
-		method_output = calculate_method(data["x"], method, Δt)
-		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
-		if typeof(method_output) <: MikaMethodOutput
-			vals = sort(unique(method_output.idealized_data))
-			mapped = (method_output.idealized_data .== vals[2])
-			approx_idealization = Vector{UInt8}(mapped)
-		else
-			approx_idealization = method_output.idealized_data
-		end
-		push!(accuracy_table, accuracy_of_idealization(actual_idealization, approx_idealization))
-	end
-end
-
-# ╔═╡ 1d0925c7-032a-4c2c-a4d8-8e4a25547024
-accuracy_table
-
 # ╔═╡ bb51a8e8-0d34-437a-b541-10d721b9ebfe
 function plot_mdl(data::Dict{String, Vector{Float64}}, breakpoints::Vector{Float64}, T_left::Float64, T_right::Float64, Δt::Float64)
 	@assert T_left <= T_right "T_left must be less or equal to T_right"
@@ -478,20 +303,287 @@ MDL minimum segments $(@bind min_seg Slider(1:300, default=2, show_value=true))
 method = MDLMethod(min_seg, threshold)
 
 # ╔═╡ 8f012c3e-d5f1-4267-a686-ee458a833a2a
+md"""
+### Checking signal to noise ratio of a given file
+"""
+
+# ╔═╡ 9f241a6f-27f2-44b5-887d-81d469294550
+if data_type == "txt"
+	md"""
+	Pick membrane voltage: $(@bind voltage Select(data_names))
+	"""
+else
+	md"""
+	Pick pickle type: $(@bind pickle_sub Select(data_names))
+	"""
+end
+
+# ╔═╡ 1599b194-dfb4-4f3e-bc4b-c62857f74a54
+begin
+	if data_type == "txt"
+		path_data = pwd() * "/$(data_folder)/sampling/$(voltage)/";
+		path_dwell_times = pwd() * "/$(data_folder)/dwell_times/$(voltage)/";
+		data_filenames = cd(readdir, path_data)[2:2:end];
+		dwelltimes_filenames = cd(readdir, path_dwell_times)[1:2:end];
+	elseif data_type == "pickle"
+		path_data = pwd() * "/$(data_folder)/pickles/$(pickle_sub)/";
+		path_dwell_times = ""
+		data_filenames = cd(readdir, path_data);
+	end
+end;
+
+# ╔═╡ e336e5e0-94a9-4093-8969-276ae308988f
+md"""
+Data file: $(@bind data_file Select(data_filenames))
+"""
+
+# ╔═╡ 61740328-3bbe-4a40-ad22-5dc1b9e1eb76
+begin
+	if data_type == "txt"
+		local dt = split(data_file, '.')
+		dt[1] = dt[1]*"dwell_timesy"
+		md"""
+		Dwell times file: $(dwell_times_file = join(dt, '.'))
+		"""
+	end
+end
+
+# ╔═╡ c85c05ff-21e9-44de-b908-72a8864abec0
+begin
+	if data_type == "txt"
+		data_file_path = path_data * data_file
+		dwell_times_path = path_dwell_times * dwell_times_file
+	else
+		data_file_path = path_data * data_file
+		dwell_times_path = ""
+	end
+end
+
+# ╔═╡ 8d1de076-505d-4b09-abd4-579d9f3d91ba
+data_file_path
+
+# ╔═╡ edd4a010-6986-480b-9ec0-4d7fba52ac93
+begin
+	x, y = read_data(data_file_path, dwell_times_path)
+	if data_type == "pickle"
+		y = Δt .* y .* 1000
+	end
+end
+
+# ╔═╡ 4349a657-0eac-40e7-8b84-8696aaa3e690
+begin
+	md"""
+	Pick how many points to idealize (1000:$(length(x)))
+	
+	$(@bind data_size NumberField(1000:1000:length(x);default=50000))
+	"""
+end
+
+# ╔═╡ 18a20f62-284b-42ca-bad3-ebef333cfda8
+begin
+	md"""
+	Left range index $(@bind N_left Slider(0:data_size; default=0.0, show_value=true))
+	"""
+end
+
+# ╔═╡ 2cc62dc0-75d2-46a3-90c2-c3dd08c3a3e2
+T_left = trunc(N_left * Δt; digits=4)
+
+# ╔═╡ a61b3892-d50e-46ed-8a04-fcbe1f11e43e
+begin
+	md"""
+	Right range index $(@bind N_right Slider(N_left:data_size-1; default=N_left+500, show_value=true))
+	"""
+end
+
+# ╔═╡ f558c3bb-a336-455b-8397-8d8e8c6707c7
+T_right = trunc(N_right * Δt ;digits=4)
+
+# ╔═╡ 3f894fd5-2256-45a5-8ef9-039223f32014
+begin
+	data = get_specified_datapoints(x, y, Δt, UInt32(data_size))
+	normalized_data = normalize_data(data)
+	data["x"] = normalized_data
+end
+
+# ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
+begin
+	method_outputs = []
+	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
+		push!(method_outputs, calculate_method(data["x"], method, Δt))
+	end
+	method_outputs = Vector{MethodOutput}(method_outputs)
+end
+
+# ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
+function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
+    @assert T_left <= T_right "N_left must be less or equal to N_right"
+    @assert T_right <= (length(data["x"]) - 1) * Δt "T_right exceeds data duration"
+
+    N_left = max(1, Int(round(T_left / Δt)) + 1)
+    N_right = min(length(data["x"]), Int(round(T_right / Δt)) + 1)
+    N = N_right - N_left + 1
+
+    time = range(T_left, T_left + Δt*(N-1), length=N)
+
+	color_blue = RGB([51,24,252] ./ 255.0 ...)  # a clear, less saturated blue
+	color_dotted = RGB([244,53,63] ./ 255.0 ...)
+  # lighter, semi-transparent orange
+
+	c_dpi = 1000
+	t_font = font(7)
+	
+	plots = []
+	for method_output in method_outputs
+	    if typeof(method_output) <: MikaMethodOutput
+			vals = sort(unique(method_output.idealized_data))
+			mapped = (method_output.idealized_data .== vals[2])
+	        y2 = mapped[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mika Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+	    elseif typeof(method_output) <: MeanDeviationMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mean Deviation Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+		elseif typeof(method_output) <: DeepChannelMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Deep Channel Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+		elseif typeof(method_output) <: NaiveMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Naive Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+			xlabel!("time [s]")
+		elseif typeof(method_output) <: MDLMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="MDL Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+	    end
+	end
+    y1 = data["x"][N_left:N_right]
+	plt1 = plot(time, y1, color=:green, legend=false, title="Ion channel current plot", titlefont=t_font, dpi=c_dpi)
+	ylabel!("current [μA]")
+
+	y3 = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
+	plot(plt1, plots..., layout=grid(length(method_outputs) + 1, 1, heights=[0.4, 0.12, 0.12, 0.12, 0.12, 0.12]);  size=(680, 800))
+	plot!(time, fill(y3, length(method_outputs) + 1), color=color_dotted, alpha=0.9, legend=false, titlefont=t_font, dpi=c_dpi, linestyle=:dot, lw=1.2)
+	
+
+end
+
+# ╔═╡ dddebe29-e457-41f0-a548-6c31842b9953
+plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
+
+# ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
+begin
+	accuracy_table = []
+	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
+		@info "using $(method)"
+		method_output = calculate_method(data["x"], method, Δt)
+		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
+		if typeof(method_output) <: MikaMethodOutput
+			vals = sort(unique(method_output.idealized_data))
+			mapped = (method_output.idealized_data .== vals[2])
+			approx_idealization = Vector{UInt8}(mapped)
+		else
+			approx_idealization = method_output.idealized_data
+		end
+		push!(accuracy_table, accuracy_of_idealization(actual_idealization, approx_idealization))
+	end
+end
+
+# ╔═╡ 1d0925c7-032a-4c2c-a4d8-8e4a25547024
+accuracy_table
+
+# ╔═╡ 3b62b303-920d-44ae-b940-1619a13ed286
+begin
+	dt = IonChannel.fit(IonChannel.UnitRangeTransform, data["x"])
+	scaled_data = IonChannel.StatsBase.transform(dt, data["x"])
+end
+
+# ╔═╡ 795f646d-ed10-475c-849d-203af0a4d396
+histogram(scaled_data)
+
+# ╔═╡ 6eff69f7-7c56-40dc-ab81-865df3d8eb8e
+begin
+	μ = IonChannel.mean(scaled_data)
+	σ = IonChannel.std(scaled_data)
+end
+
+# ╔═╡ c07ac23d-12e0-4a51-863c-fb0d9a6ae32a
+function check_std_for_all_files(data_folder)
+	what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths(data_folder)
+	all_paths = create_paths_dictionary(data_paths, dwell_times_paths)
+	output_stds = Dict{String, Dict{String, Dict{String, Float32}}}()
+	for (data_type, paths) in all_paths
+		output_stds[data_type] = Dict{String, Dict{String, Float32}}()
+		for d_type in keys(paths["data paths"])
+			output_stds[data_type][d_type] = Dict{String, Float32}()
+			@info "Processing $d_type"
+			N = length(paths["data paths"][d_type])
+			for i in 1:N
+				file = split(paths["data paths"][d_type][i], "/")[end]
+				@info "Processing file: $(file)"
+				x = Float32[]
+				y = Float32[]
+				if data_type == "txt"
+					x, y = read_data(paths["data paths"][d_type][i], paths["dwell times paths"][d_type][i])
+				else
+					x, y = read_data(paths["data paths"][d_type][i])
+				end
+				data = get_specified_datapoints(x, y, Δt, UInt32(50000))
+				dt = IonChannel.fit(IonChannel.UnitRangeTransform, data["x"])
+				scaled_data = IonChannel.StatsBase.transform(dt, data["x"])
+				# data["x"] = scaled_data
+				σ = IonChannel.std(scaled_data)
+				@info "Standard deviation: $(σ)"
+				output_stds[data_type][d_type][String(file)] = σ
+				# file_dict[String(file)] = σ
+			end
+			# data_type_dict[d_type] = f
+		end
+	end
+	output_stds
+end
+
+# ╔═╡ 39792c4e-4a3b-48ea-8442-f8b09e01c00b
+# ╠═╡ disabled = true
+#=╠═╡
+all_σ = check_std_for_all_files(data_folder)
+  ╠═╡ =#
+
+# ╔═╡ d80d805d-929a-464f-b858-6974e750ca77
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	σ_pickle_dict = all_σ["pickle"]
+	σ_pickles = [(k, v) for (k, v) in σ_pickle_dict]
+	zipped_sigmas = σ_pickles[1][2]
+	for (file, std) in σ_pickles[2][2]
+		zipped_sigmas[file] = std 
+	end
+	zipped_sigmas_vec = [(k, v) for (k, v) in zipped_sigmas]
+end
+  ╠═╡ =#
+
+# ╔═╡ 5dc53156-519b-4b23-b9f7-f97dfcd4c322
+# ╠═╡ disabled = true
+#=╠═╡
+sort(zipped_sigmas_vec, by = x -> x[2])
+  ╠═╡ =#
+
+# ╔═╡ 9004277d-f039-47c9-b15d-0bad524dfd5a
+
+
+# ╔═╡ ad45486b-4f53-4ae2-a7a3-137130c2d69e
 
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
 # ╠═dbd814ae-a166-4096-a3bc-69a169aa1e5a
+# ╠═bd5b1aab-8722-49f9-b299-9ac41e222203
 # ╠═471b5827-a5cc-4cf0-9134-62b77750d473
 # ╟─da9e0281-ea18-4f4d-84fd-2022826cdb12
 # ╠═234d65fb-c411-45a4-8cc3-3a32b4df8ec2
 # ╟─bbb40b9b-d7df-40e6-af32-57c03420583e
 # ╟─07583db4-1eba-4084-9a65-0b31173f37d9
 # ╠═960fb302-6252-4b90-bf1f-f5d744c4c2ac
-# ╠═9f241a6f-27f2-44b5-887d-81d469294550
 # ╠═1599b194-dfb4-4f3e-bc4b-c62857f74a54
-# ╟─e336e5e0-94a9-4093-8969-276ae308988f
 # ╠═61740328-3bbe-4a40-ad22-5dc1b9e1eb76
 # ╠═c85c05ff-21e9-44de-b908-72a8864abec0
 # ╠═8d1de076-505d-4b09-abd4-579d9f3d91ba
@@ -529,4 +621,15 @@ method = MDLMethod(min_seg, threshold)
 # ╠═bb51a8e8-0d34-437a-b541-10d721b9ebfe
 # ╠═0fa305bd-3398-4abc-a9e8-d347d1997c36
 # ╠═c88f2283-9725-4996-ab54-745cf73e68b9
-# ╠═8f012c3e-d5f1-4267-a686-ee458a833a2a
+# ╟─8f012c3e-d5f1-4267-a686-ee458a833a2a
+# ╟─9f241a6f-27f2-44b5-887d-81d469294550
+# ╠═e336e5e0-94a9-4093-8969-276ae308988f
+# ╠═3b62b303-920d-44ae-b940-1619a13ed286
+# ╠═795f646d-ed10-475c-849d-203af0a4d396
+# ╠═6eff69f7-7c56-40dc-ab81-865df3d8eb8e
+# ╠═c07ac23d-12e0-4a51-863c-fb0d9a6ae32a
+# ╠═39792c4e-4a3b-48ea-8442-f8b09e01c00b
+# ╠═d80d805d-929a-464f-b858-6974e750ca77
+# ╠═5dc53156-519b-4b23-b9f7-f97dfcd4c322
+# ╠═9004277d-f039-47c9-b15d-0bad524dfd5a
+# ╠═ad45486b-4f53-4ae2-a7a3-137130c2d69e

@@ -20,10 +20,10 @@ end
 begin
 	include("../src/IonChannel.jl")
 	using .IonChannel
-	import .IonChannel: plot, plot!, title!
+	import .IonChannel: plot, plot!, title!, Plots
 	import Pkg
 	Pkg.activate(".")
-	using PlutoUI
+	using PlutoUI, Plots
 end
 
 # ╔═╡ 166394a2-736c-11f0-3403-4397f75a1ff3
@@ -356,8 +356,26 @@ end
 # ╔═╡ abe552bc-1e2e-4971-a9f9-8065f36dec16
 N = length(noise_history)
 
-# ╔═╡ b481ea32-5734-4d7e-bc9a-37ea096613e7
-@bind t Clock(max_value=N, repeat=false)
+# ╔═╡ aada4997-af33-4707-8920-f6a72b681501
+begin
+	anim = @animate for t ∈ 1:N
+		n_dat = noise_history[t][1]
+		noise = n_dat.ξ
+		noise_dist = IonChannel.Normal(n_dat.μ, n_dat.σ)
+		
+		hist_plot = IonChannel.histogram(noise, title="Noise histogram. Noise MSE=$(noise_history[t][3])", normalize=true, label="Histogram", alpha=0.5);
+		mn, mx = extrema(noise)
+		line_range = mn:0.01:mx
+		plot!(line_range, IonChannel.pdf(noise_dist, line_range), label="Noise fitted PDF", lw=3, color=:red);
+	
+		thresh_hist_plot = show_threshold_history_on_plot(probability_histogram, histogram_analysis, noise_history[t][2]);
+	
+		plot(hist_plot, thresh_hist_plot, layout=(1, 2);  size=(1280, 640))
+	end
+end
+
+# ╔═╡ 64ab7c70-331d-4129-a7af-b140214b38c0
+gif(anim, "../outp/threshold_move_$(rand(UInt16)).gif", fps = 1)
 
 # ╔═╡ da6677d0-5230-4350-9e37-26611daf4351
 function show_threshold_history_on_plot(data_histogram::IonChannel.Histogram, histogram_analysis::HistPeakAnalysis, threshold::ThresholdWidth)
@@ -369,22 +387,6 @@ function show_threshold_history_on_plot(data_histogram::IonChannel.Histogram, hi
 	IonChannel.vline!([threshold.x₁], label="x1", linewidth=2)
 	IonChannel.vline!([threshold.x₂], label="x2", linewidth=2)
 	plt
-end
-
-# ╔═╡ aada4997-af33-4707-8920-f6a72b681501
-begin
-	n_dat = noise_history[t][1]
-	noise = n_dat.ξ
-	noise_dist = IonChannel.Normal(n_dat.μ, n_dat.σ)
-	
-	hist_plot = IonChannel.histogram(noise, title="Noise histogram. Noise MSE=$(noise_history[t][3])", normalize=true, label="Histogram", alpha=0.5);
-	mn, mx = extrema(noise)
-	line_range = mn:0.01:mx
-	plot!(line_range, IonChannel.pdf(noise_dist, line_range), label="Noise fitted PDF", lw=3, color=:red);
-
-	thresh_hist_plot = show_threshold_history_on_plot(probability_histogram, histogram_analysis, noise_history[t][2]);
-
-	plot(hist_plot, thresh_hist_plot, layout=(1, 2);  size=(1280, 640))
 end
 
 # ╔═╡ fcae6aa3-883d-4a8c-953c-932d7fa18c38
@@ -451,7 +453,7 @@ histogram_of_data.edges[1].step.hi
 # ╠═1ce94454-3561-467a-b958-3656d2d757d7
 # ╠═391e91e7-60fe-4654-92e2-562e8bc02052
 # ╠═abe552bc-1e2e-4971-a9f9-8065f36dec16
-# ╠═b481ea32-5734-4d7e-bc9a-37ea096613e7
 # ╠═aada4997-af33-4707-8920-f6a72b681501
+# ╠═64ab7c70-331d-4129-a7af-b140214b38c0
 # ╠═da6677d0-5230-4350-9e37-26611daf4351
 # ╠═fcae6aa3-883d-4a8c-953c-932d7fa18c38
