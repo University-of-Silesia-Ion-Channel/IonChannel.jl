@@ -14,73 +14,6 @@ This allows code like `calculate_method(data, m, Δt)` to work for any
 method_function(::MikaMethod) = mika_method
 
 """
-    point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol) -> Point
-
-Extract a point (x, y) from a histogram analysis result using field names.
-
-# Arguments
-- `hist::HistPeakAnalysis`  
-A structurecontaining edges and value fields.
-- `indexfield::Symbol`  
-The field name indicating the index (e.g., `:pmax1_index`).
-- `valuefield::Symbol`  
-The field name indicating the value (e.g., `:pmax1`).
-
-# Returns
-- [`Point`](@ref)  
-A [`Point`](@ref) instance where `x` is taken from `hist.edges` at the specified index,
-and `y` is the field value accessed from `hist`.
-
-# Description
-This function provides a generic way to extract coordinates from a histogram analysis result, 
-allowing flexible selection of peak or trough points for plotting or further calculations.
-
-# Example
-```
-analysis = analyze_histogram_peaks(prob_hist)
-peak_pt = point(analysis, :pmax1_index, :pmax1)
-println(peak_pt.x, ", ", peak_pt.y)
-```
-"""
-function point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol)::Point
-    x = hist.edges[getfield(hist, indexfield)]
-    y = getfield(hist, valuefield)
-    Point(x, y)
-end
-
-"""
-    line(point1::Point, point2::Point) -> Line
-
-Construct a [`Line`](@ref) (y = a*x + b) passing through two points.
-
-# Arguments
-- `point1::Point`  
-The first point `(x₁, y₁)` through which the line will pass.
-- `point2::Point`  
-The second point `(x₂, y₂)` through which the line will pass.
-
-# Returns
-- [`Line`](@ref)  
-A line in slope-intercept form (`y = a*x + b`), where `a` is the slope and `b` is the intercept.
-
-# Description
-Computes the slope (`a`) and y-intercept (`b`) for the line passing through two supplied points.
-
-# Example
-```
-p1 = Point(1.0, 2.0)
-p2 = Point(3.0, 5.0)
-l = line(p1, p2)
-println("y = \$(l.a)x + \$(l.b)")
-```
-"""
-function line(point1::Point, point2::Point)::Line
-    a = (point1.y - point2.y) / (point1.x - point2.x)
-    b = point1.y - a * point1.x
-    Line(a, b)
-end
-
-"""
     get_threshold_width(hist_analysis::HistPeakAnalysis, ϵ::Float32) -> ThresholdWidth
 
 Compute the threshold band used for state discrimination in idealization, based on histogram analysis and a weighting parameter.
@@ -325,9 +258,7 @@ println("Noise MSE: ", noise_mse(result))
 ```
 """
 function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod, with_vis::Bool=false)::MikaMethodOutput
-    histogram_of_data = histogram_calculator(data)
-    prob_hist = calculate_probability_histogram(histogram_of_data)
-    hist_analysis = analyze_histogram_peaks(prob_hist)
+    hist_analysis = analyze_histogram_peaks(data)
     # calculate initial mse
     data_with_times = combine_time_with_data(data, Δt)
 

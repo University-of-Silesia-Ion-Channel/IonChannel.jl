@@ -179,76 +179,156 @@ function calculate_probability_histogram(histogram::Histogram) :: Histogram
 end
 
 """
-    analyze_histogram_peaks(prob_hist::Histogram) -> HistPeakAnalysis
+    point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol) -> Point
 
-Analyze a probability histogram to find the indices and values of major peaks and the trough between them.
+Extract a point (x, y) from a histogram analysis result using field names.
 
 # Arguments
-- `prob_hist::Histogram`  
-A probability histogram (from `StatsBase.Histogram`), typically with normalized weights.
+- `hist::HistPeakAnalysis`  
+A structurecontaining edges and value fields.
+- `indexfield::Symbol`  
+The field name indicating the index (e.g., `:pmax1_index`).
+- `valuefield::Symbol`  
+The field name indicating the value (e.g., `:pmax1`).
 
 # Returns
-- [`HistPeakAnalysis`](@ref)  
-A structure bundling bin edges, weights, indices and values for the two main peaks, the midpoint index, and the minimum value (trough) between the peaks.
+- [`Point`](@ref)  
+A [`Point`](@ref) instance where `x` is taken from `hist.edges` at the specified index,
+and `y` is the field value accessed from `hist`.
 
 # Description
-This function examines the provided histogram to determine the location and values of:
-- The left maximum (`left_peak_val`)
-- Its left index (`left_peak_index`)
-- The right maximum (`right_peak_val`)
-- Its right index (`right_peak_index`)
-- The midpoint index between the two maxima
-- The minimum value (`pmin`) found between those peaks (used for thresholding)
-All results are packed into a [`HistPeakAnalysis`](@ref) struct for downstream use.
+This function provides a generic way to extract coordinates from a histogram analysis result, 
+allowing flexible selection of peak or trough points for plotting or further calculations.
 
 # Example
 ```
-data = randn(1000)
-hist = fit(Histogram, data, 50)
-prob_hist = calculate_probability_histogram(hist)
 analysis = analyze_histogram_peaks(prob_hist)
-
-println("First peak: ", analysis.left_peak, " at index ", analysis.left_peak_index)
-println("Second peak: ", analysis.right_peak, " at index ", analysis.right_peak_index)
-println("Minimum between peaks: ", analysis.pmin, " at index ", analysis.pmin_index)
+peak_pt = point(analysis, :pmax1_index, :pmax1)
+println(peak_pt.x, ", ", peak_pt.y)
 ```
 """
-function analyze_histogram_peaks(prob_hist::Histogram) :: HistPeakAnalysis
-    edges = collect(prob_hist.edges[1])
-    weights = prob_hist.weights
+function point(hist::HistPeakAnalysis, indexfield::Symbol, valuefield::Symbol)::Point
+    x = hist.edges[getfield(hist, indexfield)]
+    y = getfield(hist, valuefield)
+    Point(x, y)
+end
+
+"""
+    line(point1::Point, point2::Point) -> Line
+
+Construct a [`Line`](@ref) (y = a*x + b) passing through two points.
+
+# Arguments
+- `point1::Point`  
+The first point `(x₁, y₁)` through which the line will pass.
+- `point2::Point`  
+The second point `(x₂, y₂)` through which the line will pass.
+
+# Returns
+- [`Line`](@ref)  
+A line in slope-intercept form (`y = a*x + b`), where `a` is the slope and `b` is the intercept.
+
+# Description
+Computes the slope (`a`) and y-intercept (`b`) for the line passing through two supplied points.
+
+# Example
+```
+p1 = Point(1.0, 2.0)
+p2 = Point(3.0, 5.0)
+l = line(p1, p2)
+println("y = \$(l.a)x + \$(l.b)")
+```
+"""
+function line(point1::Point, point2::Point)::Line
+    a = (point1.y - point2.y) / (point1.x - point2.x)
+    b = point1.y - a * point1.x
+    Line(a, b)
+end
+
+# TODO: DOCS
+function analyze_histogram_peaks(scaled_data::Vector{Float32})
+	prob_hist = calculate_probability_histogram(histogram_calculator(scaled_data))
+	edges = vcat(-prob_hist.edges[1].step.hi, collect(prob_hist.edges[1]), prob_hist.edges[1][end] + prob_hist.edges[1].step.hi)
+    weights = vcat(0, prob_hist.weights, 0)
 
     # First peak (absolute max)
     pmax1, pmax1_index = findmax(weights)
-    half_hist = Int(round(length(edges) / 2))
+	half_hist = Int(round(length(edges) / 2))
 
-    if pmax1_index < half_hist
-        # Peak on left
-        midpoint = floor(Int, (pmax1_index + length(edges)) / 2)
-        pmax2, pmax2_index = findmax(weights[(midpoint+1):end])
-        pmax2_index += midpoint
+	step = pmax1_index < half_hist ? 1 : -1
+	previous_idx = pmax1_index
+	current_idx = pmax1_index + step
+	# calculate tangent to these points
+	prev_point = Point(edges[previous_idx], weights[previous_idx])
+	current_point = Point(edges[current_idx], weights[current_idx])
+	prev_tangent_line = line(prev_point, current_point)
+	maxima_indices = []
 
-        # Min between peaks
-        pmin, pmin_index = findmin(weights[pmax1_index:pmax2_index])
-        pmin_index += pmax1_index - 1
-    else
-        # Peak on right
-        midpoint = floor(Int, pmax1_index / 2)
-        pmax2, pmax2_index = findmax(weights[1:midpoint])
+	while 2 <= current_idx <= length(weights) - 1
+		previous_idx = current_idx
+		current_idx += step
+		prev_point = Point(edges[previous_idx], weights[previous_idx])
+		current_point = Point(edges[current_idx], weights[current_idx])
+		current_tangent_line = line(prev_point, current_point)
+		current_a_sign = sign(current_tangent_line.a) * step
+		previous_a_sign = sign(prev_tangent_line.a) * step
+		if current_a_sign < 0 && previous_a_sign >= 0
+			# local maximum
+			push!(maxima_indices, previous_idx)
+		end
+		prev_tangent_line = current_tangent_line
+	end
+	# D = D >= 1.0f0 ? D : 1.0f0
+	# σ = IonChannel.std(scaled_data) / D
+	# filter out the values of maxima that are too close to the maximum value
+	prior_maximas = copy(maxima_indices)
+	if step == 1
+		filter!(x -> edges[x] >= 0.5f0, maxima_indices)
+	else
+		filter!(x -> edges[x] <= 0.5f0, maxima_indices)
+	end
+	# filter!(x -> abs(edges[x] - edges[pmax1_index]) > σ, maxima_indices)
 
-        pmin, pmin_index = findmin(weights[pmax2_index:pmax1_index])
+	pmax2, pmax2_index = 0.0f0, 0
+	if length(maxima_indices) == 0
+		maxima_indices = prior_maximas
+	end
+	if length(maxima_indices) == 0
+		# no second peak found
+		pmax2, pmax2_index = pmax1, pmax1_index
+	else
+		# find second peak
+		pmax2, pmax2_index = findmax(weights[maxima_indices])
+		pmax2_index = maxima_indices[pmax2_index] - 1
+	end
+
+	# find minimum between peaks
+	if step == 1
+		# maximum on the left
+		pmin, pmin_index = findmin(weights[pmax1_index:pmax2_index])
+		pmin_index += pmax1_index - 1
+	else
+		# maximum on the right
+		pmin, pmin_index = findmin(weights[pmax2_index:pmax1_index])
         pmin_index += pmax2_index - 1
 
-        # Swap so pmax1 is always 'left' peak
+		# Swap so pmax1 is always 'left' peak
         pmax1, pmax2 = pmax2, pmax1
         pmax1_index, pmax2_index = pmax2_index, pmax1_index
-    end
+	end
 
-    return HistPeakAnalysis(edges, weights,
-        pmax1, pmax1_index,
-        pmax2, pmax2_index,
-        midpoint,
-        pmin, pmin_index
-    )
+	midpoint = round(Int, (pmax1_index + pmax2_index) / 2.0)
+	HistPeakAnalysis(
+		edges,
+		weights,
+		pmax1,
+		pmax1_index,
+		pmax2,
+		pmax2_index,
+		midpoint,
+		pmin,
+		pmin_index
+	)
 end
 
 """
@@ -272,4 +352,14 @@ dwell_times = calculate_dwell_times(signal, m, 1e-4)
 """
 function calculate_method(data::Vector{Float32}, c_method::IdealizationMethod, Δt::Float32)
     method_function(c_method)(data, Δt, c_method)
+end
+
+function get_noise_level(data_file::String) :: Float32
+    D = 0.0f0
+	try
+		D = parse.(Float32, join(split(split(data_file, "D")[end], ".")[1:2], "."))
+	catch
+		D = 1.0f0
+	end
+    D
 end

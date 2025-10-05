@@ -295,7 +295,8 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
         acc_table = Float32[]
         errors_table = Float32[]
         for i in 1:N
-            x, y = read_data(data_paths_dict["data paths"][voltage][i], data_paths_dict["dwell times paths"][voltage][i])
+            data_path::String = data_paths_dict["data paths"][voltage][i]
+            x, y = read_data(data_path, data_paths_dict["dwell times paths"][voltage][i])
             data = get_specified_datapoints(x, y, Δt, data_size)
             normalized_data = normalize_data(data)
             data["x"] = normalized_data
@@ -381,25 +382,25 @@ avg_mse = mean_error_pickle(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
-function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Float32}}, Dict{String, Dict{String, Float32}}}
+function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Dict{String, Vector{Float32}}}}, Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Dict{String, Vector{Float32}}}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data")
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["pickle"]
 
     table = Dict{String, Dict{String, Dict{String, Vector{Float32}}}}(["errors" => Dict{String, Dict{String, Vector{Float32}}}(), "accuracies" => Dict{String, Dict{String, Vector{Float32}}}()])
-    mean_error_dict = Dict{String, Dict{String, Float32}}()
-    mean_accuracy_dict = Dict{String, Dict{String, Float32}}()
+    mean_error_dict = Dict{String, Dict{String, Vector{Float32}}}()
+    mean_accuracy_dict = Dict{String, Dict{String, Vector{Float32}}}()
 
     function map_noise_level(data_file_path :: String) :: String
         noise_level = parse.(Float32, join(split(split(data_file_path, "D")[end], ".")[1:2], "."))
-        if noise_level <= 0.1f0
+        if noise_level <= 1.0f0
             return "VL"
-        elseif noise_level <= 1.0f0
+        elseif noise_level <= 2.0f0
             return "L"
-        elseif noise_level <= 2.5f0
-            return "M"
         elseif noise_level <= 5.0f0
+            return "M"
+        elseif noise_level <= 10.0f0
             return "H"
-        else 
+        else
             return "VH"
         end
     end
@@ -423,14 +424,16 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
         errors_dict = Dict("VL" => Float32[], "L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
         for i in 1:N
             n_type = map_noise_level(data_paths_dict["data paths"][pickle_type][i])
+            file_name = split(data_paths_dict["data paths"][pickle_type][i], '/')[end]
             if verbose
-                @info "Processing file $(data_paths_dict["data paths"][pickle_type][i])"
+                @info "Processing file $(file_name) of type $(pickle_type) with noise level $(n_type)"
             end
             x, y = read_data(data_paths_dict["data paths"][pickle_type][i])
             y = Δt .* y .* 1000
             data = get_specified_datapoints(x, y, Δt, data_size)
             normalized_data = normalize_data(data)
             data["x"] = normalized_data
+            
             method_output = calculate_method(normalized_data, method, Δt)
 
             mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
@@ -451,8 +454,6 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
             temp_acc_dict[n_type][2] += 1
         end
 
-        table["errors"][pickle_type] = errors_dict
-        table["accuracies"][pickle_type] = acc_dict
         for level in keys(temp_error_dict)
             if temp_error_dict[level][2] > 0
                 temp_error_dict[level][1] /= temp_error_dict[level][2]
@@ -461,12 +462,20 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
                 temp_acc_dict[level][1] /= temp_acc_dict[level][2]
             end
         end
-        mean_error_dict[pickle_type] = Dict(level => temp_error_dict[level][1] for level in keys(temp_error_dict))
-        mean_accuracy_dict[pickle_type] = Dict(level => temp_acc_dict[level][1] for level in keys(temp_acc_dict))
-        # mean_error_dict[pickle_type] = temp_error / N
-        # mean_accuracy_dict[pickle_type] = temp_acc / N
+        mean_error_dict[pickle_type] = Dict(level => [temp_error_dict[level][1]] for level in keys(temp_error_dict))
+        mean_accuracy_dict[pickle_type] = Dict(level => [temp_acc_dict[level][1]] for level in keys(temp_acc_dict))
+        table["errors"][pickle_type] = errors_dict
+        table["accuracies"][pickle_type] = acc_dict
     end
 
+    for pickle_type in keys(mean_error_dict)
+        for level in keys(mean_error_dict[pickle_type])
+            σ_err::Float32 = std(table["errors"][pickle_type][level])
+            push!(mean_error_dict[pickle_type][level], σ_err)
+            σ_acc::Float32 = std(table["accuracies"][pickle_type][level])
+            push!(mean_accuracy_dict[pickle_type][level], σ_acc)
+        end
+    end
     table, mean_accuracy_dict, mean_error_dict
 end
 

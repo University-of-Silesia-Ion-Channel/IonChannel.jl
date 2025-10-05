@@ -201,6 +201,7 @@ module IonChannel
     mdl_method,
     create_paths_dictionary,
     dicts_to_dataframes,
-    plot_mdl_timestep
+    plot_mdl_timestep,
+    get_noise_level
 
 end

@@ -421,9 +421,7 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     final_breaks, step_values = stepstat_mdl(data, all_breaks, c_method.threshold)
     # @info "$final_breaks breakpoints after step filtering"
 	breakpoints::Vector{Float32} = final_breaks .* Δt
-	histogram_of_data = histogram_calculator(data)
-    prob_hist = calculate_probability_histogram(histogram_of_data)
-    hist_analysis = analyze_histogram_peaks(prob_hist)
+    hist_analysis = analyze_histogram_peaks(data)
 
 	threshold = hist_analysis.edges[hist_analysis.pmin_index]
 	if data[1] < threshold

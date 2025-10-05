@@ -216,48 +216,11 @@ function get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::F
     data
 end
 
-"""
-    normalize_data(data::Dict{String, Vector{Float32}}) -> Vector{Float32}
-
-Normalize the `"x"` values in a data dictionary to have zero mean and unit variance
-using z-score normalization.
-
-# Arguments
-- `data::Dict{String, Vector{Float32}}`:  
-A dictionary containing at least the key `"x"` mapped to a vector of floating-point values
-(such as raw measurement data).  
-Other keys (e.g., `"dwell times"`) may be present but are ignored.
-
-# Returns
-- `Vector{Float32}`:  
-A new vector of the same length as `data["x"]`, where each element has been normalized:
-
-z_i = (x_i - μ) / σ
-
-where μ is the mean of `x`, and σ is its standard deviation.
-
-# Method
-1. Fit a [`ZScore`] scaling model
-to the `"x"` values using `fit(ZScore, data["x"])`.
-2. Apply the `normalize` function from `StatsBase` to transform the data into z-scores.
-3. Return the transformed vector.
-
-# Example
-```
-x, y = read_data("data.txt", "dwell_times.txt")
-data = get_specified_datapoints(x, y, Δt, 50)
-normalized_x = normalize_data(data)
-```
-
-# Notes
-- Requires the **StatsBase.jl** and **Normalization.jl** package.
-- The `"x"` vector must not be empty and must contain finite real values.
-- This function does not modify the original dictionary; it returns a new normalized vector.
-"""
+# TODO: DOCUMENTATION
 function normalize_data(data::Dict{String, Vector{Float32}}) :: Vector{Float32}
-    N = fit(ZScore, data["x"])
-    normalized_data = normalize(data["x"], N)
-    normalized_data
+    dt = fit(StatsBase.UnitRangeTransform, data["x"])
+	scaled_data = StatsBase.transform(dt, data["x"])
+    scaled_data
 end
 
 """

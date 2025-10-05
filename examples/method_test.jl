@@ -258,6 +258,9 @@ for filename in keys(error_outputs)
 end
   ╠═╡ =#
 
+# ╔═╡ 0d965935-b4d1-4c5a-a3cd-726ed0460738
+
+
 # ╔═╡ bb51a8e8-0d34-437a-b541-10d721b9ebfe
 function plot_mdl(data::Dict{String, Vector{Float64}}, breakpoints::Vector{Float64}, T_left::Float64, T_right::Float64, Δt::Float64)
 	@assert T_left <= T_right "T_left must be less or equal to T_right"
@@ -409,11 +412,15 @@ end
 # ╔═╡ fada3c74-3f60-41fa-b011-5e24e112f1ee
 begin
 	method_outputs = []
+	dat = Data(split(data_file_path, "/")[end], data["x"])
 	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
-		push!(method_outputs, calculate_method(data["x"], method, Δt))
+		push!(method_outputs, calculate_method(dat, method, Δt))
 	end
 	method_outputs = Vector{MethodOutput}(method_outputs)
 end
+
+# ╔═╡ 495333c6-8149-446e-9b2b-dd6278b5b11d
+split(data_file_path, "/")[end]
 
 # ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
 function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
@@ -472,9 +479,11 @@ plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
 # ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
 begin
 	accuracy_table = []
+	
 	for method in (data_type == "pickle" ? methods_pickle : methods_txt)
 		@info "using $(method)"
-		method_output = calculate_method(data["x"], method, Δt)
+		
+		method_output = calculate_method(dat, method, Δt)
 		actual_idealization = actual_idealize_data(data, what_first_dict, data_file, Δt)
 		if typeof(method_output) <: MikaMethodOutput
 			vals = sort(unique(method_output.idealized_data))
@@ -490,6 +499,16 @@ end
 # ╔═╡ 1d0925c7-032a-4c2c-a4d8-8e4a25547024
 accuracy_table
 
+# ╔═╡ 207e7cb2-1f92-4907-9461-5eca67976314
+begin
+	global D = 0.0f0
+	try
+		D = parse.(Float32, join(split(split(data_file, "D")[end], ".")[1:2], "."))
+	catch
+		D = 1.0f0
+	end
+end
+
 # ╔═╡ 3b62b303-920d-44ae-b940-1619a13ed286
 begin
 	dt = IonChannel.fit(IonChannel.UnitRangeTransform, data["x"])
@@ -497,7 +516,40 @@ begin
 end
 
 # ╔═╡ 795f646d-ed10-475c-849d-203af0a4d396
-histogram(scaled_data)
+foo = calculate_probability_histogram(histogram_calculator(scaled_data))
+
+# ╔═╡ 489096a1-80df-41e6-a8bf-a237689b6873
+foo.edges[1].step.hi
+
+# ╔═╡ a491cf8d-b567-465e-9ed2-ebce76f08f7d
+o = analyze_histogram_peaks(scaled_data, D)
+
+# ╔═╡ 10bef431-4c94-4f18-8bec-c7414f90ddf4
+begin
+	plot(foo)
+	# vline!([foo.edges[1][smallest_local_minimum_idx]])
+	# vline!([foo.edges[1][biggest_local_maximum_idx]])
+	vline!([o.edges[o.left_peak_index]], label="left peak")
+	vline!([o.edges[o.right_peak_index]], label="right peak", lw=2)
+	vline!([o.edges[o.pmin_index]], label="minimum")
+	vline!([o.edges[o.midpoint]], label="midpoint")
+	
+	
+	# vline!(foo.edges[1][local_minima], label="minima")
+	# vline!(foo.edges[1][local_maxima], label="maxima")
+	# vline!(foo.edges[1][local_maxima])
+	# vline!([foo.edges[1][foo_a.right_peak_index]])
+	# vline!([foo.edges[1][foo_a.left_peak_index]])
+	# vline!([foo.edges[1][foo_a.pmin_index]])
+	# vline!([foo.edges[1][foo_a.midpoint]])
+end
+
+# ╔═╡ ffd175b2-cc02-472e-bdbf-187618fb2001
+begin
+	p1 = Point(1, 0)
+	p2 = Point(0, 1)
+	line(p1, p2), line(p2, p1)
+end
 
 # ╔═╡ 6eff69f7-7c56-40dc-ab81-865df3d8eb8e
 begin
@@ -506,72 +558,115 @@ begin
 end
 
 # ╔═╡ c07ac23d-12e0-4a51-863c-fb0d9a6ae32a
-function check_std_for_all_files(data_folder)
-	what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths(data_folder)
-	all_paths = create_paths_dictionary(data_paths, dwell_times_paths)
-	output_stds = Dict{String, Dict{String, Dict{String, Float32}}}()
-	for (data_type, paths) in all_paths
-		output_stds[data_type] = Dict{String, Dict{String, Float32}}()
-		for d_type in keys(paths["data paths"])
-			output_stds[data_type][d_type] = Dict{String, Float32}()
-			@info "Processing $d_type"
-			N = length(paths["data paths"][d_type])
-			for i in 1:N
-				file = split(paths["data paths"][d_type][i], "/")[end]
-				@info "Processing file: $(file)"
-				x = Float32[]
-				y = Float32[]
-				if data_type == "txt"
-					x, y = read_data(paths["data paths"][d_type][i], paths["dwell times paths"][d_type][i])
-				else
-					x, y = read_data(paths["data paths"][d_type][i])
-				end
-				data = get_specified_datapoints(x, y, Δt, UInt32(50000))
-				dt = IonChannel.fit(IonChannel.UnitRangeTransform, data["x"])
-				scaled_data = IonChannel.StatsBase.transform(dt, data["x"])
-				# data["x"] = scaled_data
-				σ = IonChannel.std(scaled_data)
-				@info "Standard deviation: $(σ)"
-				output_stds[data_type][d_type][String(file)] = σ
-				# file_dict[String(file)] = σ
-			end
-			# data_type_dict[d_type] = f
-		end
+begin
+	struct NoiseAnalysis
+		distance_between_peaks::Float32
+		distance_between_middle::Float32
+		min_height::Float32
 	end
-	output_stds
+	
+	function analyze_noise_levels(data_folder)
+		what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths(data_folder)
+		all_paths = create_paths_dictionary(data_paths, dwell_times_paths)
+		noise_analysis = Dict{String, Dict{String, Dict{String, NoiseAnalysis}}}()
+		for (data_type, paths) in all_paths
+			noise_analysis[data_type] = Dict{String, Dict{String, NoiseAnalysis}}()
+			for d_type in keys(paths["data paths"])
+				noise_analysis[data_type][d_type] = Dict{String, NoiseAnalysis}()
+				N = length(paths["data paths"][d_type])
+				@info "Processing $d_type; $N files"
+				for i in 1:N
+					file = split(paths["data paths"][d_type][i], "/")[end]
+					@info "Processing file: $(file)"
+					x = Float32[]
+					y = Float32[]
+					if data_type == "txt"
+						continue
+						# x, y = read_data(paths["data paths"][d_type][i], paths["dwell times paths"][d_type][i])
+					else
+						x, y = read_data(paths["data paths"][d_type][i])
+					end
+					data = get_specified_datapoints(x, y, Δt, UInt32(50000))
+					dt = IonChannel.fit(IonChannel.UnitRangeTransform, data["x"])
+					scaled_data = IonChannel.StatsBase.transform(dt, data["x"])
+					# data["x"] = scaled_data
+					
+					# σ = IonChannel.std(scaled_data)
+					# @info "Standard deviation: $(σ)"
+					# output_stds[data_type][d_type][String(file)] = σ
+	
+					# find two peaks on a histogram and find distance between them
+					# the further apart the peaks the better signal to noise ratio - maybe
+	
+					histogram_analysis::HistPeakAnalysis = analyze_histogram_peaks(scaled_data, get_noise_level(String(file)))
+					edges = histogram_analysis.edges
+					weights = histogram_analysis.weights
+					distance_between_peaks::Float32 = abs(edges[histogram_analysis.right_peak_index] - edges[histogram_analysis.left_peak_index])
+					distance_between_mid = 0.0f0
+					if weights[histogram_analysis.left_peak_index] > weights[histogram_analysis.right_peak_index]
+						distance_between_mid = abs(edges[histogram_analysis.left_peak_index] - 0.5f0)
+					else
+						distance_between_mid = abs(edges[histogram_analysis.right_peak_index] - 0.5f0)
+					end
+					noise_analysis[data_type][d_type][String(file)] = NoiseAnalysis(distance_between_peaks, distance_between_mid, histogram_analysis.pmin)			
+					
+					# file_dict[String(file)] = σ
+				end
+				# data_type_dict[d_type] = f
+			end
+		end
+		noise_analysis
+	end
 end
 
 # ╔═╡ 39792c4e-4a3b-48ea-8442-f8b09e01c00b
-# ╠═╡ disabled = true
-#=╠═╡
-all_σ = check_std_for_all_files(data_folder)
-  ╠═╡ =#
+noise_analysis = analyze_noise_levels(data_folder)
 
-# ╔═╡ d80d805d-929a-464f-b858-6974e750ca77
-# ╠═╡ disabled = true
-#=╠═╡
+# ╔═╡ 7f5fe22e-049f-4520-b6c6-91fe6c768f89
 begin
-	σ_pickle_dict = all_σ["pickle"]
-	σ_pickles = [(k, v) for (k, v) in σ_pickle_dict]
-	zipped_sigmas = σ_pickles[1][2]
-	for (file, std) in σ_pickles[2][2]
-		zipped_sigmas[file] = std 
+	pickle_noise_analysis = noise_analysis["pickle"]
+	pickle_noises_dict = Dict{String, Vector{Tuple{Float32, NoiseAnalysis}}}()
+	for (type, noises) in pickle_noise_analysis
+		temp_vec = Tuple{Float32, NoiseAnalysis}[]
+		for (file_name, noise) in noises
+			push!(temp_vec, (get_noise_level(file_name), noise))
+		end
+		sort!(temp_vec, by = x -> x[1])
+		pickle_noises_dict[type] = temp_vec
 	end
-	zipped_sigmas_vec = [(k, v) for (k, v) in zipped_sigmas]
+	pickle_noises_dict
 end
-  ╠═╡ =#
 
-# ╔═╡ 5dc53156-519b-4b23-b9f7-f97dfcd4c322
-# ╠═╡ disabled = true
-#=╠═╡
-sort(zipped_sigmas_vec, by = x -> x[2])
-  ╠═╡ =#
+# ╔═╡ e4a0b0a8-922a-4d0d-bf04-c6aab14d1a39
 
-# ╔═╡ 9004277d-f039-47c9-b15d-0bad524dfd5a
 
+# ╔═╡ e4c7bfd1-efea-44ec-aaae-57419db5bc5e
+function plot_noise_levels_dist_between_peaks(pickle_noises_dict)
+	vec_to_plot_p20 = [(D, noise.distance_between_peaks) for (D, noise) in pickle_noises_dict["p20"]]
+	vec_to_plot_m20 = [(D, noise.distance_between_peaks) for (D, noise) in pickle_noises_dict["m20"]]
+	plot(vec_to_plot_p20, label="p20")
+	plot!(vec_to_plot_m20, label="m20")
+	plot!(; xticks=0:5:100)
+	# plot!(zipped_noises_for_plot[2:2:end])
+end
+
+# ╔═╡ f32f72fd-9cc3-4e5c-a4d2-846fcc436e4e
+plot_noise_levels_dist_between_peaks(pickle_noises_dict)
 
 # ╔═╡ ad45486b-4f53-4ae2-a7a3-137130c2d69e
+function plot_noise_levels_dist_between_mid(pickle_noises_dict)
+	vec_to_plot_p20 = [(D, noise.distance_between_middle) for (D, noise) in pickle_noises_dict["p20"]]
+	vec_to_plot_m20 = [(D, noise.distance_between_middle) for (D, noise) in pickle_noises_dict["m20"]]
+	plot(vec_to_plot_p20, label="p20")
+	plot!(vec_to_plot_m20, label="m20")
+	plot!(; xticks=0:5:100)
+	xlabel!("D")
+	ylabel!("Distance between max and middle of the histogram")
+	# plot!(zipped_noises_for_plot[2:2:end])
+end
 
+# ╔═╡ 06d9e137-dddf-47e4-ae3d-a94923b733c8
+plot_noise_levels_dist_between_mid(pickle_noises_dict)
 
 # ╔═╡ Cell order:
 # ╟─91ef147a-729a-11f0-1157-03caaf19ff7b
@@ -608,7 +703,9 @@ sort(zipped_sigmas_vec, by = x -> x[2])
 # ╠═6159272b-fd43-4dc9-bb2f-bceba7329003
 # ╠═efe8289b-4b3d-4a8d-9f82-cdd8e8a8dd34
 # ╠═fcdf4e9d-d2bc-45d9-989c-d0f38b8f5774
+# ╠═0d965935-b4d1-4c5a-a3cd-726ed0460738
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
+# ╠═495333c6-8149-446e-9b2b-dd6278b5b11d
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953
 # ╟─18a20f62-284b-42ca-bad3-ebef333cfda8
@@ -624,12 +721,19 @@ sort(zipped_sigmas_vec, by = x -> x[2])
 # ╟─8f012c3e-d5f1-4267-a686-ee458a833a2a
 # ╟─9f241a6f-27f2-44b5-887d-81d469294550
 # ╠═e336e5e0-94a9-4093-8969-276ae308988f
+# ╠═207e7cb2-1f92-4907-9461-5eca67976314
 # ╠═3b62b303-920d-44ae-b940-1619a13ed286
 # ╠═795f646d-ed10-475c-849d-203af0a4d396
+# ╠═489096a1-80df-41e6-a8bf-a237689b6873
+# ╠═a491cf8d-b567-465e-9ed2-ebce76f08f7d
+# ╠═10bef431-4c94-4f18-8bec-c7414f90ddf4
+# ╠═ffd175b2-cc02-472e-bdbf-187618fb2001
 # ╠═6eff69f7-7c56-40dc-ab81-865df3d8eb8e
 # ╠═c07ac23d-12e0-4a51-863c-fb0d9a6ae32a
 # ╠═39792c4e-4a3b-48ea-8442-f8b09e01c00b
-# ╠═d80d805d-929a-464f-b858-6974e750ca77
-# ╠═5dc53156-519b-4b23-b9f7-f97dfcd4c322
-# ╠═9004277d-f039-47c9-b15d-0bad524dfd5a
+# ╠═7f5fe22e-049f-4520-b6c6-91fe6c768f89
+# ╠═e4a0b0a8-922a-4d0d-bf04-c6aab14d1a39
+# ╠═e4c7bfd1-efea-44ec-aaae-57419db5bc5e
+# ╠═f32f72fd-9cc3-4e5c-a4d2-846fcc436e4e
 # ╠═ad45486b-4f53-4ae2-a7a3-137130c2d69e
+# ╠═06d9e137-dddf-47e4-ae3d-a94923b733c8

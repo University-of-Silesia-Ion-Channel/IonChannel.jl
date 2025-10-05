@@ -14,10 +14,10 @@ method_function(::DeepChannelMethod) = deep_channel_method
     deep_channel_method(data::Vector{Float32}, Δt::Float32, c_method::DeepChannelMethod) 
         :: DeepChannelMethodOutput
 
-Apply a deep learning–based ion-channel state detection method to time series data.
+Apply a deep learning-based ion-channel state detection method to time series data.
 
 # Arguments
-- `data::Vector{Float32}`: The raw time-series signal (e.g., ion-channel recording).
+- `data::Vector{Float32}`: The scaled time-series signal with `UnitRangeTransform` (e.g., ion-channel recording).
 - `Δt::Float32`: Sampling interval of the signal. Used to convert sample indices into time units.
 - `c_method::DeepChannelMethod`: A trained deep learning model encapsulated in a [`DeepChannelMethod`](@ref)
    object. The underlying model must support `.predict`.
@@ -29,7 +29,7 @@ A [`DeepChannelMethodOutput`](@ref) containing:
 - `class_predict_val::Vector{UInt8}`: Per-sample predicted state labels, starting at `0`.
 
 # Method
-1. The input data is scaled into `[0,1]` using `UnitRangeTransform`.
+1. The input data must be scaled into `[0,1]` using `UnitRangeTransform` before use.
 2. Data is reshaped into `(N,1,1,1)` to match the model’s expected input.
 3. Predictions are computed with `c_method.model.predict`.
 4. The most likely class per sample is extracted with `argmax`, producing
@@ -60,9 +60,7 @@ println(result.class_predict_val[1:20])
 function deep_channel_method(data::Vector{Float32}, Δt::Float32, c_method::DeepChannelMethod) :: DeepChannelMethodOutput
     data_augmentation = 0
     N = length(data) + data_augmentation
-    t = fit(UnitRangeTransform, data)
-    scaled_data = StatsBase.transform(t, data)
-    input_data = reshape(scaled_data, (N, 1, 1, 1))
+    input_data = reshape(data, (N, 1, 1, 1))
     pred = c_method.model.predict(input_data, batch_size=16*1024, verbose=0)
     idxs = argmax(pred; dims=2)
     class_predict_val = Vector{UInt8}(vec(getindex.(idxs, 2)) .- 1)
