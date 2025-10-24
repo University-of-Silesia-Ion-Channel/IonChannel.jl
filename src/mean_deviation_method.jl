@@ -108,5 +108,5 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
         push!(idealized_data, state)
     end
     breakpoints = cumsum(dwell_times_approx)
-    MeanDeviationMethodOutput(breakpoints, dwell_times_approx, idealized_data)
+    MeanDeviationMethodOutput(breakpoints, dwell_times_approx, idealized_data, analysis.mid_max_distance)
 end

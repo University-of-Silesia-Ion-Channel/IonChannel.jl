@@ -31,6 +31,9 @@ md"""
 ## Loading necessary packages
 """
 
+# ╔═╡ 6e188ea4-e4c7-46d8-8b01-5ab590089a12
+
+
 # ╔═╡ 59a7a871-c1ca-4ae3-be64-20ebe078eb53
 md"""
 ## Step 1:  Calculation of the ion current’s probability distribution $\mathbb{P}$(I)
@@ -202,7 +205,7 @@ md"""
 """
 
 # ╔═╡ 69bbd9b5-d5c4-4318-a2bc-912efc7b3bdc
-histogram_analysis = analyze_histogram_peaks(probability_histogram)
+histogram_analysis = analyze_histogram_peaks(normalized_data)
 
 # ╔═╡ e1f85d37-c06b-4ffc-94de-fdd0726d6529
 md"""
@@ -326,6 +329,9 @@ begin
 	approx_idealization = Vector{UInt8}(mapped)
 end
 
+# ╔═╡ 2cbe71f1-42b3-46ac-ac00-808af7733bbf
+optimized_data.idealized_data
+
 # ╔═╡ 65182740-c716-4dd3-9d40-9c72e90e07d1
 accuracy = accuracy_of_idealization(actual_data_idealization, approx_idealization)
 
@@ -356,6 +362,18 @@ end
 # ╔═╡ abe552bc-1e2e-4971-a9f9-8065f36dec16
 N = length(noise_history)
 
+# ╔═╡ da6677d0-5230-4350-9e37-26611daf4351
+function show_threshold_history_on_plot(data_histogram::IonChannel.Histogram, histogram_analysis::HistPeakAnalysis, threshold::ThresholdWidth)
+	plt = IonChannel.bar(data_histogram, label="Histogram (density)", alpha=0.5, title="Histogram of data with analysis")
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.left_peak_index]], label="Left maximum", lw=2)
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.right_peak_index]], label="Right maximum", lw=2)
+	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.pmin_index]], label="minimum")
+	IonChannel.vline!([threshold.threshold_centre], label="threshold centre", lw=2)
+	IonChannel.vline!([threshold.x₁], label="x1", linewidth=2)
+	IonChannel.vline!([threshold.x₂], label="x2", linewidth=2)
+	plt
+end
+
 # ╔═╡ aada4997-af33-4707-8920-f6a72b681501
 begin
 	anim = @animate for t ∈ 1:N
@@ -377,24 +395,13 @@ end
 # ╔═╡ 64ab7c70-331d-4129-a7af-b140214b38c0
 gif(anim, "../outp/threshold_move_$(rand(UInt16)).gif", fps = 1)
 
-# ╔═╡ da6677d0-5230-4350-9e37-26611daf4351
-function show_threshold_history_on_plot(data_histogram::IonChannel.Histogram, histogram_analysis::HistPeakAnalysis, threshold::ThresholdWidth)
-	plt = IonChannel.bar(data_histogram, label="Histogram (density)", alpha=0.5, title="Histogram of data with analysis")
-	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.left_peak_index]], label="Left maximum", lw=2)
-	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.right_peak_index]], label="Right maximum", lw=2)
-	IonChannel.vline!([histogram_analysis.edges[histogram_analysis.pmin_index]], label="minimum")
-	IonChannel.vline!([threshold.threshold_centre], label="threshold centre", lw=2)
-	IonChannel.vline!([threshold.x₁], label="x1", linewidth=2)
-	IonChannel.vline!([threshold.x₂], label="x2", linewidth=2)
-	plt
-end
-
 # ╔═╡ fcae6aa3-883d-4a8c-953c-932d7fa18c38
 histogram_of_data.edges[1].step.hi
 
 # ╔═╡ Cell order:
 # ╟─166394a2-736c-11f0-3403-4397f75a1ff3
 # ╠═69b97b3d-80dd-41a6-b434-fd26fc2a6e39
+# ╠═6e188ea4-e4c7-46d8-8b01-5ab590089a12
 # ╟─59a7a871-c1ca-4ae3-be64-20ebe078eb53
 # ╟─ff9f76f5-3363-4c12-bb8d-74fa3efb422d
 # ╠═4963a611-376f-4411-a7a5-6a0ddaf1b01d
@@ -447,6 +454,7 @@ histogram_of_data.edges[1].step.hi
 # ╠═dd0870d6-f5a4-4127-998e-5e150e020535
 # ╠═0929eed9-6e3c-4664-8d06-da8b773a09bb
 # ╠═c499a81b-b29a-4dfe-a6d0-e18f3f3443e0
+# ╠═2cbe71f1-42b3-46ac-ac00-808af7733bbf
 # ╠═65182740-c716-4dd3-9d40-9c72e90e07d1
 # ╠═534bc421-21d8-44d3-babc-f441ccb523cf
 # ╠═960fd8ff-770e-486f-a317-107545f25b1e

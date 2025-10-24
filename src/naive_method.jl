@@ -109,7 +109,7 @@ function naive_method(data::Vector{Float32}, Δt::Float32, method::NaiveMethod) 
     else
         dwell_times = append!([breakpoints[1]], diff(breakpoints))
     end
-    NaiveMethodOutput(breakpoints, dwell_times, idealized_data)
+    NaiveMethodOutput(breakpoints, dwell_times, idealized_data, hist_analysis.mid_max_distance)
 end
 
 """

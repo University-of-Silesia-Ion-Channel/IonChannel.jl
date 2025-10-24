@@ -442,7 +442,7 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     else
         dwell_times = [length(data) * Δt]
     end
-	MDLMethodOutput(breakpoints, dwell_times, idealized_data, all_breaks .* Δt, step_values)
+	MDLMethodOutput(breakpoints, dwell_times, idealized_data, all_breaks .* Δt, step_values, hist_analysis.mid_max_distance)
 end
 
 """

@@ -90,7 +90,7 @@ function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32
     idealized_values = Vector{Float32}([])
     # println("Dwell times [1]: ", dwell_times_approx[1]/Δt)
     for dt in dwell_times_approx
-        how_many = round(UInt16, dt/Δt)
+        how_many = round(UInt32, dt/Δt)
         append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
         idealized_value = idealized_value == I_max_bottom ? I_max_top : I_max_bottom
     end
@@ -270,13 +270,20 @@ avg_mse = mean_error_txt(m, Δt, UInt32(10000))
 println("Average MSE across datasets: ", avg_mse)
 ```
 """
-function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Float32}, Dict{String, Float32}}
+function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UInt32, verbose::Bool=false) :: Tuple{Dict{String, Dict{String, Vector{Float32}}}, Dict{String, Vector{Float32}}, Dict{String, Vector{Float32}}}
     what_first_file_path, data_paths, dwell_times_paths = read_all_file_paths("data") # TODO: make "data" an argument
     data_paths_dict = create_paths_dictionary(data_paths, dwell_times_paths)["txt"]
 
+    # table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
+    # mean_error_dict = Dict{String, Float32}()
+    # mean_accuracy_dict = Dict{String, Float32}()
+    # table = Dict{String, Dict{String, Dict{String, Vector{Float32}}}}(["errors" => Dict{String, Dict{String, Vector{Float32}}}(), "accuracies" => Dict{String, Dict{String, Vector{Float32}}}()])
     table = Dict{String, Dict{String, Vector{Float32}}}(["errors" => Dict{String, Vector{Float32}}(), "accuracies" => Dict{String, Vector{Float32}}()])
-    mean_error_dict = Dict{String, Float32}()
-    mean_accuracy_dict = Dict{String, Float32}()
+    mean_error_dict = Dict{String, Vector{Float32}}()
+    mean_accuracy_dict = Dict{String, Vector{Float32}}()
+    # mean_error_dict = Dict{String, Dict{String, Vector{Float32}}}()
+    # mean_accuracy_dict = Dict{String, Dict{String, Vector{Float32}}}()
+
     if verbose
         @info "$(what_first_file_path)"
     end
@@ -284,17 +291,26 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
 	    String(split(line,',')[1]) => parse(UInt8, split(line,',')[2])
 	    for line in eachline(what_first_file_path)
 	)
-
+    
+    temp_error_dict = Dict("L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+    temp_acc_dict = Dict("L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+    acc_dict = Dict("L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
+    errors_dict = Dict("L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
+    
     for voltage in keys(data_paths_dict["data paths"])
         if verbose
             @info "Processing voltage $(voltage)"
         end
         N = length(data_paths_dict["data paths"][voltage])
-        temp_error = 0.0f0
-        temp_acc = 0.0f0
-        acc_table = Float32[]
-        errors_table = Float32[]
+        # temp_error = 0.0f0
+        # temp_acc = 0.0f0
+        # acc_table = Float32[]
+        # errors_table = Float32[]
         for i in 1:N
+            if verbose
+                file_name = split(data_paths_dict["data paths"][voltage][i], '/')[end]
+                @info "Processing file $(file_name) of voltage $(voltage)"
+            end
             data_path::String = data_paths_dict["data paths"][voltage][i]
             x, y = read_data(data_path, data_paths_dict["dwell times paths"][voltage][i])
             data = get_specified_datapoints(x, y, Δt, data_size)
@@ -302,9 +318,25 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
             data["x"] = normalized_data
             method_output = calculate_method(normalized_data, method, Δt)
 
+            n_type = ""
+            if typeof(method_output) <: DeepChannelMethodOutput
+                hist_analysis = analyze_histogram_peaks(data["x"])
+                n_type = map_noise_level(hist_analysis.mid_max_distance)
+            else
+                n_type = map_noise_level(method_output.mid_max_distance)
+            end
+
+            if verbose
+                @info "Noise level classified as $(n_type)."
+            end
+            
             mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
-            temp_error += mse
-            push!(errors_table, mse)
+            # temp_error += mse
+            # push!(errors_table, mse)
+            temp_error_dict[n_type][1] += mse
+            temp_error_dict[n_type][2] += 1
+            push!(errors_dict[n_type], mse)
+
             actual_idealized_data = actual_idealize_data(data, what_first_dict, split(data_paths_dict["data paths"][voltage][i], '/')[end], Δt)
             if typeof(method_output) <: MikaMethodOutput
                 vals = sort(unique(method_output.idealized_data))
@@ -314,15 +346,39 @@ function mean_error_txt(method::IdealizationMethod, Δt::Float32, data_size::UIn
                 approx_idealization = method_output.idealized_data
             end
             acc = accuracy_of_idealization(actual_idealized_data, approx_idealization)
-            push!(acc_table, acc)
-            temp_acc += acc
+            # push!(acc_table, acc)
+            # temp_acc += acc
+            push!(acc_dict[n_type], acc)
+            temp_acc_dict[n_type][1] += acc
+            temp_acc_dict[n_type][2] += 1
         end
-        table["errors"][voltage] = errors_table
-        table["accuracies"][voltage] = acc_table
-        mean_error_dict[voltage] = temp_error / N
-        mean_accuracy_dict[voltage] = temp_acc / N
+
+        # table["errors"][voltage] = errors_table
+        # table["accuracies"][voltage] = acc_table
+        # mean_error_dict[voltage] = temp_error / N
+        # mean_accuracy_dict[voltage] = temp_acc / N
     end
 
+    for level in keys(temp_error_dict)
+        if temp_error_dict[level][2] > 0
+            temp_error_dict[level][1] /= temp_error_dict[level][2]
+        end
+        if temp_acc_dict[level][2] > 0
+            temp_acc_dict[level][1] /= temp_acc_dict[level][2]
+        end
+    end
+    mean_error_dict = Dict(level => [temp_error_dict[level][1]] for level in keys(temp_error_dict))
+    mean_accuracy_dict = Dict(level => [temp_acc_dict[level][1]] for level in keys(temp_acc_dict))
+    table["errors"] = errors_dict
+    table["accuracies"] = acc_dict
+
+    for level in keys(mean_error_dict)
+        σ_err::Float32 = std(table["errors"][level])
+        push!(mean_error_dict[level], σ_err)
+        σ_acc::Float32 = std(table["accuracies"][level])
+        push!(mean_accuracy_dict[level], σ_acc)
+    end
+    
     table, mean_accuracy_dict, mean_error_dict
 end
 
@@ -390,21 +446,6 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
     mean_error_dict = Dict{String, Dict{String, Vector{Float32}}}()
     mean_accuracy_dict = Dict{String, Dict{String, Vector{Float32}}}()
 
-    function map_noise_level(data_file_path :: String) :: String
-        noise_level = parse.(Float32, join(split(split(data_file_path, "D")[end], ".")[1:2], "."))
-        if noise_level <= 1.0f0
-            return "VL"
-        elseif noise_level <= 2.0f0
-            return "L"
-        elseif noise_level <= 5.0f0
-            return "M"
-        elseif noise_level <= 10.0f0
-            return "H"
-        else
-            return "VH"
-        end
-    end
-
     if verbose
         @info "$(what_first_file_path)"
     end
@@ -418,23 +459,33 @@ function mean_error_pickle(method::IdealizationMethod, Δt::Float32, data_size::
             @info "Processing type $(pickle_type)"
         end
         N = length(data_paths_dict["data paths"][pickle_type])
-        temp_error_dict = Dict("VL" => [0.0f0, 0], "L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
-        temp_acc_dict = Dict("VL" => [0.0f0, 0], "L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
-        acc_dict = Dict("VL" => Float32[], "L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
-        errors_dict = Dict("VL" => Float32[], "L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
+        temp_error_dict = Dict("L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+        temp_acc_dict = Dict("L" => [0.0f0, 0], "M" => [0.0f0, 0], "H" => [0.0f0, 0], "VH" => [0.0f0, 0])
+        acc_dict = Dict("L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
+        errors_dict = Dict("L" => Float32[], "M" => Float32[], "H" => Float32[], "VH" => Float32[])
         for i in 1:N
-            n_type = map_noise_level(data_paths_dict["data paths"][pickle_type][i])
-            file_name = split(data_paths_dict["data paths"][pickle_type][i], '/')[end]
+            # n_type = map_noise_level(data_paths_dict["data paths"][pickle_type][i])
             if verbose
-                @info "Processing file $(file_name) of type $(pickle_type) with noise level $(n_type)"
+                file_name = split(data_paths_dict["data paths"][pickle_type][i], '/')[end]
+                @info "Processing file $(file_name) of type $(pickle_type)"
             end
             x, y = read_data(data_paths_dict["data paths"][pickle_type][i])
             y = Δt .* y .* 1000
             data = get_specified_datapoints(x, y, Δt, data_size)
             normalized_data = normalize_data(data)
             data["x"] = normalized_data
-            
+            n_type = ""
             method_output = calculate_method(normalized_data, method, Δt)
+            if typeof(method_output) <: DeepChannelMethodOutput
+                hist_analysis = analyze_histogram_peaks(data["x"])
+                n_type = map_noise_level(hist_analysis.mid_max_distance)
+            else
+                n_type = map_noise_level(method_output.mid_max_distance)
+            end
+            
+            if verbose
+                @info "Noise level classified as $(n_type). TEST"
+            end
 
             mse = calculate_mean_square_error(data, method_output.dwell_times_approx)[1]
             temp_error_dict[n_type][1] += mse

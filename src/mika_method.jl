@@ -370,5 +370,5 @@ function mika_method(data::Vector{Float32}, Δt::Float32, method::MikaMethod, wi
             end 
         end
     end
-    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse, history_of_noise)
+    MikaMethodOutput(breakpoints, dwell_times_approx, best_idealized_data, best_noise, best_threshold, best_noise_mse, history_of_noise, hist_analysis.mid_max_distance)
 end

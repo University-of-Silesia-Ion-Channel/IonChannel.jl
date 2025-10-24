@@ -246,14 +246,22 @@ function line(point1::Point, point2::Point)::Line
 end
 
 # TODO: DOCS
-function analyze_histogram_peaks(scaled_data::Vector{Float32})
+function analyze_histogram_peaks(scaled_data::Vector{Float32}) :: HistPeakAnalysis
 	prob_hist = calculate_probability_histogram(histogram_calculator(scaled_data))
 	edges = vcat(-prob_hist.edges[1].step.hi, collect(prob_hist.edges[1]), prob_hist.edges[1][end] + prob_hist.edges[1].step.hi)
     weights = vcat(0, prob_hist.weights, 0)
 
+	middle_of_hist = Int(round(length(edges) / 2))
+
     # First peak (absolute max)
     pmax1, pmax1_index = findmax(weights)
 	half_hist = Int(round(length(edges) / 2))
+
+	# distance between maximums have to be scaled
+	distance_between_middle_and_max = abs(edges[pmax1_index] - edges[half_hist])
+	n_bins = length(edges)
+	heuristic = round(Int, n_bins * distance_between_middle_and_max)
+	# @info "Heuristic value for peak separation: $heuristic"
 
 	step = pmax1_index < half_hist ? 1 : -1
 	previous_idx = pmax1_index
@@ -281,25 +289,34 @@ function analyze_histogram_peaks(scaled_data::Vector{Float32})
 	# D = D >= 1.0f0 ? D : 1.0f0
 	# σ = IonChannel.std(scaled_data) / D
 	# filter out the values of maxima that are too close to the maximum value
-	prior_maximas = copy(maxima_indices)
-	if step == 1
-		filter!(x -> edges[x] >= 0.5f0, maxima_indices)
-	else
-		filter!(x -> edges[x] <= 0.5f0, maxima_indices)
-	end
+	# @info "Maxima indices before filtering: $maxima_indices"
+	filter!(x -> weights[x] >= 0.05f0, maxima_indices)
+	prior_maximas_filtered = copy(maxima_indices)
+	filter!(x -> abs(pmax1_index - x) >= heuristic, maxima_indices)
+	# @info "Maxima indices after filtering: $maxima_indices"
 	# filter!(x -> abs(edges[x] - edges[pmax1_index]) > σ, maxima_indices)
 
 	pmax2, pmax2_index = 0.0f0, 0
 	if length(maxima_indices) == 0
-		maxima_indices = prior_maximas
-	end
-	if length(maxima_indices) == 0
 		# no second peak found
-		pmax2, pmax2_index = pmax1, pmax1_index
+		if length(prior_maximas_filtered) == 0
+			dist = abs(pmax1_index - middle_of_hist)
+        	if dist != 0 
+				pmax2_index = step == 1 ? pmax1_index + (2 * dist) : pmax1_index - (2 * dist)
+				@info "No second peak found, estimating second peak at index $pmax2_index"
+				pmax2 = weights[pmax2_index]
+			else
+				pmax2_index = step == 1 ? pmax1_index + 4 : pmax1_index - 4
+				pmax2 = weights[pmax2_index]
+			end
+		else
+			pmax2, pmax2_index = findmax(weights[prior_maximas_filtered])
+			pmax2_index = prior_maximas_filtered[pmax2_index]
+		end
 	else
 		# find second peak
 		pmax2, pmax2_index = findmax(weights[maxima_indices])
-		pmax2_index = maxima_indices[pmax2_index] - 1
+		pmax2_index = maxima_indices[pmax2_index]
 	end
 
 	# find minimum between peaks
@@ -327,7 +344,8 @@ function analyze_histogram_peaks(scaled_data::Vector{Float32})
 		pmax2_index,
 		midpoint,
 		pmin,
-		pmin_index
+		pmin_index,
+		distance_between_middle_and_max
 	)
 end
 
@@ -354,12 +372,14 @@ function calculate_method(data::Vector{Float32}, c_method::IdealizationMethod, �
     method_function(c_method)(data, Δt, c_method)
 end
 
-function get_noise_level(data_file::String) :: Float32
-    D = 0.0f0
-	try
-		D = parse.(Float32, join(split(split(data_file, "D")[end], ".")[1:2], "."))
-	catch
-		D = 1.0f0
+function map_noise_level(max_mid_dist::Float32) :: String
+	if max_mid_dist >= 0.3f0
+		return "L"
+	elseif max_mid_dist >= 0.2f0
+		return "M"
+	elseif max_mid_dist >= 0.075f0
+		return "H"
+	else
+		return "VH"
 	end
-    D
 end

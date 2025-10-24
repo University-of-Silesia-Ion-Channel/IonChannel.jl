@@ -119,8 +119,8 @@ show_approx_on_plot(Dict("x"=>x, "dwell times"=>y), result, 0.5f0, 0.9f0, t)
 Created and maintained by [Piotr Mika](https://github.com/p-j-o-t-e-r).
 """
 module IonChannel
-  import Pkg
-  Pkg.activate("../")
+  # import Pkg
+  # Pkg.activate("../")
 
   include("./types.jl")
   include("./read_data.jl")
@@ -202,6 +202,5 @@ module IonChannel
     create_paths_dictionary,
     dicts_to_dataframes,
     plot_mdl_timestep,
-    get_noise_level
-
+    map_noise_level
 end

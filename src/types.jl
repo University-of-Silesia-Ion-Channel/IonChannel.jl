@@ -56,6 +56,8 @@ The index representing the midpoint between the two main peaks.
 The height (weight) of the minimum (trough) between the two main peaks.
 - `pmin_index::Int`  
 The bin index of the minimum (trough) between the two main peaks.
+- `mid_max_distance::Float32`  
+The distance between the midpoint and the higher of the two peak values.
 
 # Description
 [`HistPeakAnalysis`](@ref) encapsulates detailed information about the histogram peaks and troughs necessary for further analysis such as threshold determination.
@@ -79,6 +81,7 @@ mutable struct HistPeakAnalysis
     midpoint::Int
     pmin::Float32
     pmin_index::Int
+    mid_max_distance::Float32
 end
 
 """
@@ -303,6 +306,7 @@ struct MikaMethodOutput <: MethodOutput
     threshold::ThresholdWidth
     noise_mse::Float32
     history_of_noise::Union{Dict{String, Vector{Tuple{Noise, ThresholdWidth, Float32}}}, Nothing}
+    mid_max_distance::Float32
 end
 
 breakpoints(optimized_data::MikaMethodOutput) = optimized_data.breakpoints
@@ -397,6 +401,7 @@ struct MeanDeviationMethodOutput <: MethodOutput
     breakpoints::Vector{Float32}
     dwell_times_approx::Vector{Float32}
     idealized_data::Vector{UInt8}
+    mid_max_distance::Float32
 end
 
 
@@ -511,6 +516,7 @@ struct NaiveMethodOutput <: MethodOutput
     dwell_times_approx::Vector{Float32}
     breakpoints::Vector{Float32}
     idealized_data::Vector{UInt8}
+    mid_max_distance::Float32
 end
 
 """
@@ -584,4 +590,5 @@ struct MDLMethodOutput <: MethodOutput
     idealized_data::Vector{UInt8}
     unfiltered_breaks::Vector{Float32}
     step_values::Vector{Float32}
+    mid_max_distance::Float32
 end
