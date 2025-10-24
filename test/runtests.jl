@@ -1,10 +1,10 @@
 import Pkg
+
 Pkg.activate(".")
 
 using Test
 
-include("../src/IonChannel.jl")
-using .IonChannel
+using IonChannel
 
 println("Running IonChannel tests...")
 Test.@testset "IonChannel tests" begin

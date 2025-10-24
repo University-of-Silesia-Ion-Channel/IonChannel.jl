@@ -24,8 +24,9 @@ using Random
     # normalize_data
     d = Dict("x" => Float32[1.0, 2.0, 3.0])
     nd = IonChannel.normalize_data(d)
-    @test abs(mean(nd)) < 1e-6
-    @test abs(std(nd) - 1.0f0) < 1e-5
+    # checks whether data is scaled to fit into unit range [0, 1]
+    @test maximum(nd) == 1.0f0
+    @test minimum(nd) == 0.0f0
 end
 
 @testset "get_specified_datapoints" begin
