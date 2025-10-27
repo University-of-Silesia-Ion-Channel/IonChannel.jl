@@ -28,6 +28,7 @@ begin
 	# Pkg.add("DataFrames")
 	# Pkg.add("CSV")
 	# Pkg.add("Plots")
+	Pkg.add("PlotlyJS")
 	using PlutoUI, DataFrames, CSV, Plots
 	using IonChannel
 	Revise.revise()
@@ -39,7 +40,7 @@ md"""
 """
 
 # ╔═╡ da4ca310-423a-4dec-89e4-c508f143b225
-plotly()
+# plotly()
 
 # ╔═╡ 471b5827-a5cc-4cf0-9134-62b77750d473
 # ╠═╡ disabled = true
@@ -122,6 +123,20 @@ begin
 	model = keras.models.load_model(models_path * model_file)
 end
 
+# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	error_outputs_txt = Dict([])
+	for method in methods_txt
+		@info "using $(method)"
+		m_table, m_acc, m_error = mean_error_txt(method, Δt, UInt32(225000), true)
+		error_outputs_txt[string(split(string(typeof(method)), '.')[end])] = (m_table, m_acc, m_error)
+	end
+	error_outputs_txt
+end
+  ╠═╡ =#
+
 # ╔═╡ d3d9a860-61e4-48aa-8bb2-f7adde600f51
 # ╠═╡ disabled = true
 #=╠═╡
@@ -146,6 +161,49 @@ function vector_dict_to_df(d::Dict{String,Vector{Float32}})
 				for (k, v) in d)...)
 	DataFrame(cols)
 end
+
+# ╔═╡ 4e86a3c1-39ac-4075-98a5-2f23af247b0b
+#=╠═╡
+begin
+	
+	df_errors = Dict()
+	df_accuracies = Dict()
+	df_final_summary = Dict()
+	for (method, method_error) in error_outputs_txt
+		@info "$method"
+		full_table, mean_accuracies, mean_errors = method_error		
+		# save 
+		temp_df_error = vector_dict_to_df(full_table["errors"])
+		temp_df_accuracy = vector_dict_to_df(full_table["accuracies"])
+		noise_levels = collect(keys(mean_accuracies))
+		@info "$noise_levels"
+		@info "$([mean_errors[n][1] for n in noise_levels])"
+		df_summary = DataFrame(
+			noise_level = noise_levels,
+			mean_error = [mean_errors[n][1] for n in noise_levels],
+			mean_error_std = [mean_errors[n][2] for n in noise_levels],
+			mean_accuracy = [get(mean_accuracies, n, NaN32)[1] for n in noise_levels],
+			mean_accuracy_std = [get(mean_accuracies, n, NaN32)[2] for n in noise_levels]
+		)
+		@info "$df_summary"
+		temp_df_summary = df_summary
+		
+		df_errors[method] = temp_df_error
+		df_accuracies[method] = temp_df_accuracy
+
+		df_final_summary[method] = temp_df_summary
+		# full table
+		# errors/accuracies -> pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	
+		# mean_accuracies
+		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	
+		# mean_errors
+		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+		
+	end
+end
+  ╠═╡ =#
 
 # ╔═╡ 642fd764-2e35-435e-b553-d6f2afc6265a
 # ╠═╡ disabled = true
@@ -197,6 +255,47 @@ begin
 end
   ╠═╡ =#
 
+# ╔═╡ 45496c71-959e-451a-aa2f-b91263535cd9
+#=╠═╡
+df_accuracies
+  ╠═╡ =#
+
+# ╔═╡ 178e295d-fb7a-4e09-bc81-eccde9e8c386
+#=╠═╡
+keys(df_errors)
+  ╠═╡ =#
+
+# ╔═╡ 6159272b-fd43-4dc9-bb2f-bceba7329003
+#=╠═╡
+df_final_summary["MikaMethod"]
+  ╠═╡ =#
+
+# ╔═╡ 8b5726e5-1de9-44e1-bac7-68af7b899b24
+#=╠═╡
+begin
+	# dir = "experimental"
+	# @info "$dir"
+	direct = "../outp/experimental"
+	try
+		mkdir(direct)
+	catch e
+		println("Directory already exists")
+	end
+	for dir in keys(df_errors)
+		# @info "$pickle_type"
+		try
+			mkdir(direct * "/$(dir)")
+		catch e
+			println("Directory already exists")
+		end
+		
+		CSV.write(direct * "/$(dir)/errors.csv", df_errors[dir])
+		CSV.write(direct * "/$(dir)/accuracies.csv", df_accuracies[dir])
+		CSV.write(direct * "/$(dir)/mean_errors_and_accuracies.csv", df_final_summary[dir])
+	end
+end
+  ╠═╡ =#
+
 # ╔═╡ efe8289b-4b3d-4a8d-9f82-cdd8e8a8dd34
 # ╠═╡ disabled = true
 #=╠═╡
@@ -235,95 +334,69 @@ end
 # ╔═╡ 4a6f6699-1b84-4329-846d-08ae252cf762
 begin
 	# methods = [DeepChannelMethod(model), MeanDeviationMethod(0.0, 1.0), MikaMethod(0.0, 100), NaiveMethod(100)]
-	methods_txt = [MDLMethod(UInt16(2), Float32(0.51)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
+	methods_txt = [MDLMethod(UInt16(2), Float32(0.15)), MikaMethod(), DeepChannelMethod(model), MeanDeviationMethod(0.0), NaiveMethod()]
 	methods_pickle = deepcopy(methods_txt)
 	methods_pickle[1] = MDLMethod(UInt16(100), Float32(0.15))
 end
 
-# ╔═╡ 18d40559-432e-43d9-9027-7efcbc681a7d
-begin
-	error_outputs_txt = Dict([])
-	for method in methods_txt
-		@info "using $(method)"
-		m_table, m_acc, m_error = mean_error_txt(method, Δt, UInt32(225000), true)
-		error_outputs_txt[string(split(string(typeof(method)), '.')[end])] = (m_table, m_acc, m_error)
-	end
-	error_outputs_txt
-end
+# ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
+# ╠═╡ disabled = true
+#=╠═╡
+function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
+    @assert T_left <= T_right "N_left must be less or equal to N_right"
+    @assert T_right <= (length(data["x"]) - 1) * Δt "T_right exceeds data duration"
 
-# ╔═╡ 4e86a3c1-39ac-4075-98a5-2f23af247b0b
-begin
+    N_left = max(1, Int(round(T_left / Δt)) + 1)
+    N_right = min(length(data["x"]), Int(round(T_right / Δt)) + 1)
+    N = N_right - N_left + 1
+
+    time = range(T_left, T_left + Δt*(N-1), length=N)
+
+	color_blue = RGB([51,24,252] ./ 255.0 ...)  # a clear, less saturated blue
+	color_dotted = RGB([244,53,63] ./ 255.0 ...)
+
+	c_dpi = 1000
+	t_font = font(7)
 	
-	df_errors = Dict()
-	df_accuracies = Dict()
-	df_final_summary = Dict()
-	for (method, method_error) in error_outputs_txt
-		@info "$method"
-		full_table, mean_accuracies, mean_errors = method_error		
-		# save 
-		temp_df_error = vector_dict_to_df(full_table["errors"])
-		temp_df_accuracy = vector_dict_to_df(full_table["accuracies"])
-		noise_levels = collect(keys(mean_accuracies))
-		@info "$noise_levels"
-		@info "$([mean_errors[n][1] for n in noise_levels])"
-		df_summary = DataFrame(
-			noise_level = noise_levels,
-			mean_error = [mean_errors[n][1] for n in noise_levels],
-			mean_error_std = [mean_errors[n][2] for n in noise_levels],
-			mean_accuracy = [get(mean_accuracies, n, NaN32)[1] for n in noise_levels],
-			mean_accuracy_std = [get(mean_accuracies, n, NaN32)[2] for n in noise_levels]
-		)
-		@info "$df_summary"
-		temp_df_summary = df_summary
-		
-		df_errors[method] = temp_df_error
-		df_accuracies[method] = temp_df_accuracy
-
-		df_final_summary[method] = temp_df_summary
-		# full table
-		# errors/accuracies -> pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	plots = []
 	
-		# mean_accuracies
-		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
+	y3 = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
 	
-		# mean_errors
-		# pickle_type(m20/p20) -> VL/L/M/H/VH -> Vector
-		
+	for method_output in method_outputs
+	    if typeof(method_output) <: MikaMethodOutput
+			vals = sort(unique(method_output.idealized_data))
+			mapped = (method_output.idealized_data .== vals[2])
+	        y2 = mapped[N_left:N_right]
+			diff = abs.(y2 - y3)
+			plt1 = plot(time, y2, color=color_blue, legend=false, title="Mika Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1)
+			plt1 = plot!(time, diff, color=:orange, fillalpha=0.2, fillrange=0, legend=false)
+			push!(plots, plt1)
+	    elseif typeof(method_output) <: MeanDeviationMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mean Deviation Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+		elseif typeof(method_output) <: DeepChannelMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Deep Channel Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+		elseif typeof(method_output) <: NaiveMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Naive Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
+			xlabel!("time [s]")
+		elseif typeof(method_output) <: MDLMethodOutput
+			y2 = method_output.idealized_data[N_left:N_right]
+			push!(plots, plot(time, y2, color=color_blue, legend=false, title="MDL Method", titlefont=t_font, dpi=c_dpi, yticks = 0:1))
+	    end
 	end
+    y1 = data["x"][N_left:N_right]
+	plt1 = plot(time, y1, color=:green, legend=false, title="Ion channel current plot", titlefont=t_font, dpi=c_dpi)
+	ylabel!("current [μA]")
+
+	plot(plt1, plots..., layout=grid(length(method_outputs) + 1, 1, heights=[0.4, 0.12, 0.12, 0.12, 0.12, 0.12]);  size=(680, 800))
+	
+	plot!(time, fill(y3, length(method_outputs) + 1), color=color_dotted, alpha=0.9, legend=false, titlefont=t_font, dpi=c_dpi, linestyle=:dot, lw=1.2)
+	
+
 end
-
-# ╔═╡ 45496c71-959e-451a-aa2f-b91263535cd9
-df_accuracies
-
-# ╔═╡ 178e295d-fb7a-4e09-bc81-eccde9e8c386
-keys(df_errors)
-
-# ╔═╡ 6159272b-fd43-4dc9-bb2f-bceba7329003
-df_final_summary["MikaMethod"]
-
-# ╔═╡ 8b5726e5-1de9-44e1-bac7-68af7b899b24
-begin
-	# dir = "experimental"
-	# @info "$dir"
-	direct = "../outp/experimental"
-	try
-		mkdir(direct)
-	catch e
-		println("Directory already exists")
-	end
-	for dir in keys(df_errors)
-		# @info "$pickle_type"
-		try
-			mkdir(direct * "/$(dir)")
-		catch e
-			println("Directory already exists")
-		end
-		
-		CSV.write(direct * "/$(dir)/errors.csv", df_errors[dir])
-		CSV.write(direct * "/$(dir)/accuracies.csv", df_accuracies[dir])
-		CSV.write(direct * "/$(dir)/mean_errors_and_accuracies.csv", df_final_summary[dir])
-	end
-end
+  ╠═╡ =#
 
 # ╔═╡ 8f012c3e-d5f1-4267-a686-ee458a833a2a
 md"""
@@ -438,59 +511,111 @@ begin
 	method_outputs = Vector{MethodOutput}(method_outputs)
 end
 
-# ╔═╡ e6f2282a-fe7c-4467-ae54-6a439a875ac8
-function plot_idealization_for_methods(data::Dict{String, Vector{Float32}}, method_outputs::Vector{MethodOutput}, T_left::Float32, T_right::Float32, Δt::Float32)
+# ╔═╡ cf55efdb-1cff-43ea-904d-c121371c4131
+function plot_idealization_for_methods(
+    data::Dict{String, Vector{Float32}},
+    method_outputs::Vector{MethodOutput},
+    T_left::Float32,
+    T_right::Float32,
+    Δt::Float32
+)
     @assert T_left <= T_right "N_left must be less or equal to N_right"
     @assert T_right <= (length(data["x"]) - 1) * Δt "T_right exceeds data duration"
-
+    
     N_left = max(1, Int(round(T_left / Δt)) + 1)
     N_right = min(length(data["x"]), Int(round(T_right / Δt)) + 1)
     N = N_right - N_left + 1
-
-    time = range(T_left, T_left + Δt*(N-1), length=N)
-
-	color_blue = RGB([51,24,252] ./ 255.0 ...)  # a clear, less saturated blue
-	color_dotted = RGB([244,53,63] ./ 255.0 ...)
-  # lighter, semi-transparent orange
-
-	c_dpi = 1000
-	t_font = font(7)
-	
-	plots = []
-	for method_output in method_outputs
-	    if typeof(method_output) <: MikaMethodOutput
-			vals = sort(unique(method_output.idealized_data))
-			mapped = (method_output.idealized_data .== vals[2])
-	        y2 = mapped[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mika Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
-	    elseif typeof(method_output) <: MeanDeviationMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Mean Deviation Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
-		elseif typeof(method_output) <: DeepChannelMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Deep Channel Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
-		elseif typeof(method_output) <: NaiveMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="Naive Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
-			xlabel!("time [s]")
-		elseif typeof(method_output) <: MDLMethodOutput
-			y2 = method_output.idealized_data[N_left:N_right]
-			push!(plots, plot(time, y2, color=color_blue, legend=false, title="MDL Method", titlefont=t_font, dpi=c_dpi; yticks = 0:1))
-	    end
-	end
+    
+    time = range(T_left, T_left + Δt * (N-1), length=N)
+    
+    color_blue = RGB(51/255,24/255,252/255)
+    color_dotted = RGB(244/255,53/255,63/255)
+    color_fill = RGBA(244/255,153/255,63/255, 0.25) # muted orange w/ alpha
+    
+    c_dpi = 1000
+    t_font = font(7)
+    
+    # Prepare the ground-truth vector for comparison (should be 0/1 values)
+	y3::Vector{Int8} = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
+    
+    plots = []
+    # For each method output, create a subplot
+    for method_output in method_outputs
+        # Get the idealized vector for this method (0/1)
+        if typeof(method_output) <: MikaMethodOutput
+            vals = sort(unique(method_output.idealized_data))
+            mapped = (method_output.idealized_data .== vals[2])
+            y2 = mapped[N_left:N_right]
+            meth_name = "Mika Method"
+        elseif typeof(method_output) <: MeanDeviationMethodOutput
+            y2 = method_output.idealized_data[N_left:N_right]
+            meth_name = "Mean Deviation Method"
+        elseif typeof(method_output) <: DeepChannelMethodOutput
+            y2 = method_output.idealized_data[N_left:N_right]
+            meth_name = "Deep Channel Method"
+        elseif typeof(method_output) <: NaiveMethodOutput
+            y2 = method_output.idealized_data[N_left:N_right]
+            meth_name = "Naive Method"
+        elseif typeof(method_output) <: MDLMethodOutput
+            y2 = method_output.idealized_data[N_left:N_right]
+            meth_name = "MDL Method"
+        else
+            continue
+        end
+        
+        # Calculate where there's disagreement
+		y2 = Vector{Int8}(y2)
+        diff = abs.(y2 .- y3)
+        
+        # Plot the method's idealization (blue) and overlay ground-truth (dotted)
+        p = plot(
+			time, y2, color=color_blue, legend=false, title=meth_name, titlefont=t_font, dpi=c_dpi,
+            yticks=0:1, size=(580,500)
+        )
+		plot!(p, time, y3, color=color_dotted, alpha=0.7, linewidth=1.5, linestyle=:dot, legend=false)
+        
+        # Add the fill: shade where "diff" is nonzero, between 0 and 1
+		plot!(p, time, diff, fillrange=0, fillcolor=color_fill, linecolor=:transparent, label="", legend=false)
+        
+        if meth_name == "Naive Method"
+            xlabel!(p, "time [s]")
+        end
+        
+        push!(plots, p)
+    end
+    
+    # Top plot: raw data (optional) + ground-truth/dashed overlays
     y1 = data["x"][N_left:N_right]
-	plt1 = plot(time, y1, color=:green, legend=false, title="Ion channel current plot", titlefont=t_font, dpi=c_dpi)
-	ylabel!("current [μA]")
-
-	y3 = actual_idealize_data(data, what_first_dict, data_file, Δt)[N_left:N_right]
-	plot(plt1, plots..., layout=grid(length(method_outputs) + 1, 1, heights=[0.4, 0.12, 0.12, 0.12, 0.12, 0.12]);  size=(680, 800))
-	plot!(time, fill(y3, length(method_outputs) + 1), color=color_dotted, alpha=0.9, legend=false, titlefont=t_font, dpi=c_dpi, linestyle=:dot, lw=1.2)
-	
-
+    plt1 = plot(
+		time, y1, color=:green, legend=false, title="Ion channel current plot", titlefont=t_font, dpi=c_dpi
+    )
+    ylabel!(plt1, "current [μA]")
+    # Optionally also overlay ground-truth segments/dashed lines here
+	plot!(plt1, time, y3, color=color_dotted, alpha=0.7, linewidth=1.5, linestyle=:dot, legend=false)
+    # Build grid layout and display
+    allplots = [plt1; plots...]
+    grid_heights = [0.4; fill(0.12, length(method_outputs))]
+    plot(
+        allplots..., layout=grid(length(allplots), 1, heights=grid_heights),
+        size=(680, 800)
+    )
+	# savefig("../outp/comparison_plot.pdf")
 end
 
+
 # ╔═╡ dddebe29-e457-41f0-a548-6c31842b9953
-plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
+begin
+	plotlyjs()
+	plt = plot_idealization_for_methods(data, method_outputs, T_left, T_right, Δt)
+	
+end
+
+# ╔═╡ 17ee5852-8310-4f4f-b801-90c0d175cb5d
+begin
+	import PlotlyJS
+	width, height = plt.attr[:size]
+	PlotlyJS.savefig(Plots.plotlyjs_syncplot(plt), "../outp/comparison_plot.svg", width=width, height=height)
+end
 
 # ╔═╡ e2c14ce0-514d-4158-8cd8-f9c417790f00
 begin
@@ -760,7 +885,9 @@ end
 # ╠═4a6f6699-1b84-4329-846d-08ae252cf762
 # ╠═fada3c74-3f60-41fa-b011-5e24e112f1ee
 # ╠═e6f2282a-fe7c-4467-ae54-6a439a875ac8
+# ╠═cf55efdb-1cff-43ea-904d-c121371c4131
 # ╠═dddebe29-e457-41f0-a548-6c31842b9953
+# ╠═17ee5852-8310-4f4f-b801-90c0d175cb5d
 # ╟─18a20f62-284b-42ca-bad3-ebef333cfda8
 # ╠═a61b3892-d50e-46ed-8a04-fcbe1f11e43e
 # ╟─2cc62dc0-75d2-46a3-90c2-c3dd08c3a3e2
