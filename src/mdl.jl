@@ -385,7 +385,8 @@ function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{U
     
 	start::UInt32 = 1
 	end_::UInt32 = length(data)
-    BP_local = Vector{UInt32}([end_])
+    BP_local = UInt32[end_]
+    sizehint!(BP_local, 100)  # Hint for typical number of breakpoints
     BPlast::UInt32 = end_
     t0::UInt32 = start
     currentBP::UInt32 = BPlast
@@ -393,16 +394,18 @@ function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{U
     while t0 < end_
         while true
 			# @info "Searching breakpoints at: $t0:$(currentBP-1)"
-            current_segment = data[t0:(currentBP-1)]
+            current_segment = view(data, t0:(currentBP-1))  # Use view to avoid copying
             br = detect_breaks_mdl(current_segment, "full", c_method.min_seg)
             if isempty(br) && length(current_segment) > 3 * c_method.min_seg
                 br = detect_breaks_mdl(current_segment, "full_two_break", c_method.min_seg)
             end
 
             if !isempty(br)
-                loc = Vector{UInt32}(br .+ t0 .- 1)
-                BP_local = vcat(BP_local, loc)
-                currentBP = loc[1]
+                # Append adjusted breakpoints more efficiently
+                for b in br
+                    push!(BP_local, b + t0 - 1)
+                end
+                currentBP = br[1] + t0 - 1
             else
                 break
             end
@@ -412,21 +415,28 @@ function mdl_method_part(data::Vector{Float32}, c_method::MDLMethod) :: Vector{U
         t0 = currentBP + 1
         if currentBP != BPlast && currentBP != end_
             BPlast = currentBP
-            idx = findall(x -> x == currentBP, BP_local)
-            if !isempty(idx) && idx[1] + 1 <= length(BP_local)
-                currentBP = BP_local[idx[1] + 1]
+            # More efficient search
+            idx = searchsortedfirst(BP_local, currentBP)
+            if idx + 1 <= length(BP_local)
+                currentBP = BP_local[idx + 1]
             end
         end
     end
     
-    breaks = sort(BP_local)[1:end-1]
+    breaks = BP_local[1:end-1]
+    sort!(breaks)
     breaks
 end
 
 function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) :: MDLMethodOutput
+    n = length(data)
     breaks_forward = mdl_method_part(data, c_method)
-    breaks_backward = (length(data) + 1) .- mdl_method_part(data[end:-1:1], c_method)
-    all_breaks::Vector{UInt32} = sort(unique(vcat(breaks_forward, breaks_backward)))
+    
+    # Reverse data for backward pass - use view and reverse operation more efficiently
+    data_reversed = reverse(data)
+    breaks_backward = (n + 1) .- mdl_method_part(data_reversed, c_method)
+    
+    all_breaks::Vector{UInt32} = sort!(unique!(vcat(breaks_forward, breaks_backward)))
     # @info "$(length(all_breaks)) breakpoints detected before step filtering"
     final_breaks, step_values = stepstat_mdl(data, all_breaks, c_method.threshold)
     # @info "$final_breaks breakpoints after step filtering"
@@ -436,23 +446,35 @@ function mdl_method(data::Vector{Float32}, Δt::Float32, c_method::MDLMethod) ::
     hist_analysis = analyze_histogram_peaks(prob_hist)
 
 	threshold = hist_analysis.edges[hist_analysis.pmin_index]
-	if data[1] < threshold
-        current_state = 0 # starting at the bottom
-    else
-        current_state = 1 # starting at the top
+	current_state = data[1] < threshold ? UInt8(0) : UInt8(1)
+    
+    # Pre-allocate idealized_data
+	idealized_data = Vector{UInt8}(undef, n)
+    
+    idx = 1
+    @inbounds for br_idx in final_breaks
+        # Fill from idx to br_idx with current_state
+        for j in idx:br_idx
+            idealized_data[j] = current_state
+        end
+        idx = br_idx + 1
+        current_state = current_state == 0 ? UInt8(1) : UInt8(0)
     end
-	prev_br_idx = 1
-	idealized_data = [current_state]
-	for br_idx in final_breaks
-		append!(idealized_data, fill(current_state, br_idx - prev_br_idx))
-		prev_br_idx = br_idx
-		current_state = current_state == 0 ? 1 : 0
-	end
-	append!(idealized_data, fill(current_state, length(data) - prev_br_idx))
-    if !(isempty(breakpoints))
-	    dwell_times = vcat([breakpoints[1]], diff(breakpoints))
+    
+    # Fill remaining
+    @inbounds for j in idx:n
+        idealized_data[j] = current_state
+    end
+    
+    if !isempty(breakpoints)
+        n_breaks = length(breakpoints)
+	    dwell_times = Vector{Float32}(undef, n_breaks)
+        dwell_times[1] = breakpoints[1]
+        @inbounds for i in 2:n_breaks
+            dwell_times[i] = breakpoints[i] - breakpoints[i-1]
+        end
     else
-        dwell_times = [length(data) * Δt]
+        dwell_times = Float32[n * Δt]
     end
 	MDLMethodOutput(breakpoints, dwell_times, idealized_data, all_breaks .* Δt, step_values)
 end
