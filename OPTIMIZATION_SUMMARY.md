@@ -14,13 +14,15 @@ This PR addresses performance bottlenecks throughout the IonChannel.jl codebase,
 # Before
 idealized_values = Vector{Int8}([])
 for dt in data["dwell times"]
-    append!(idealized_values, idealized_value * ones(...))
+    how_many = round(Int, dt/Δt)
+    append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
 end
 
 # After
 idealized_values = Vector{Int8}(undef, data_len)
 idx = 1
 for dt in y
+    how_many = max(1, round(Int, dt/Δt))
     end_idx = min(idx + how_many - 1, data_len)
     for j in idx:end_idx
         idealized_values[j] = idealized_value
@@ -83,7 +85,7 @@ current_segment = view(data, t0:(currentBP-1))
 **Solution**: Consistent type usage throughout
 
 **Examples**:
-- Changed `Vector{Int32}([])` to `Vector{UInt32}([])`
+- Changed `Vector{Int32}()` to `Vector{UInt32}()`
 - Used `Float32` consistently in `histogram_calculator`
 - Used `UInt8` for state variables
 
@@ -98,15 +100,17 @@ current_segment = view(data, t0:(currentBP-1))
 # Before
 Y = y[findall(t -> t <= max_time, cumsum(y))]
 
-# After
+# After - Note: push! used here is acceptable as we don't know final size
+# and the cumulative sum check requires sequential processing
 cum_sum = 0.0f0
 Y = Vector{Float32}()
+sizehint!(Y, length(y))  # Hint expected size to reduce reallocations
 @inbounds for i in eachindex(y)
     cum_sum += y[i]
     if cum_sum <= max_time
         push!(Y, y[i])
     else
-        break
+        break  # Early termination avoids full pass
     end
 end
 ```
