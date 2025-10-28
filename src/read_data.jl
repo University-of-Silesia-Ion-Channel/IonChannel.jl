@@ -226,8 +226,21 @@ println(data["dwell times"])
 function get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size::UInt32=UInt32(0)) :: Dict{String, Vector{Float32}}
     N = length(x)
     data_size = data_size == 0 || data_size > N ? N : data_size
-    max_time = data_size*Δt
-    Y = y[findall(t -> t <= max_time, cumsum(y))]
+    max_time = data_size * Δt
+    
+    # More efficient filtering using a loop
+    cum_sum = 0.0f0
+    Y = Vector{Float32}()
+    sizehint!(Y, length(y))
+    @inbounds for i in eachindex(y)
+        cum_sum += y[i]
+        if cum_sum <= max_time
+            push!(Y, y[i])
+        else
+            break
+        end
+    end
+    
     data = Dict("x" => x[1:data_size], "dwell times" => Y)
     data
 end

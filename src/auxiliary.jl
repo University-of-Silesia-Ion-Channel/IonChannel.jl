@@ -134,20 +134,16 @@ println(hist.edges) # Bin edges
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
 function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: Histogram
-    extrema_of_data = extrema(data)
-    min_data = extrema_of_data[1]
-    max_data = extrema_of_data[2]
+    min_data, max_data = extrema(data)
     if nbins > 0
         edges = range(min_data, stop=max_data, length=nbins+1)
-        histogram_of_data = fit(Histogram, data, edges)
-        return histogram_of_data
+        return fit(Histogram, data, edges)
     end
     IQR::Float32 = iqr(data)
 	n::UInt32 = length(data)
-	bin_width::Float32 = 2.0 * (IQR/∛n)
-	number_of_bins = round(Int, (max_data - min_data) / bin_width)
-	histogram_of_data = fit(Histogram, data, nbins= number_of_bins)
-    histogram_of_data
+	bin_width::Float32 = 2.0f0 * (IQR / cbrt(Float32(n)))
+	number_of_bins = max(1, round(Int, (max_data - min_data) / bin_width))
+	return fit(Histogram, data, nbins=number_of_bins)
 end
 
 """

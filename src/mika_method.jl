@@ -282,19 +282,26 @@ normality score.
   `noise_data(noise)` with `noise.ξ`.
 """
 function noise_test(noise::Noise)::Float32
-    # data_1 = rand(Normal(0, 1), 50000)
     batch_size = 50
-    num_batches = div(length(noise_data(noise)), batch_size)
-    pvals = Float32[]
-
-    for i in 1:num_batches
-        batch = noise_data(noise)[(i-1)*batch_size+1:i*batch_size]
+    noise_vals = noise_data(noise)
+    n = length(noise_vals)
+    num_batches = div(n, batch_size)
+    
+    if num_batches == 0
+        return NaN32
+    end
+    
+    pvals = Vector{Float32}(undef, num_batches)
+    
+    @inbounds for i in 1:num_batches
+        start_idx = (i - 1) * batch_size + 1
+        end_idx = i * batch_size
+        batch = view(noise_vals, start_idx:end_idx)
         test = ShapiroWilkTest(batch)
-        push!(pvals, pvalue(test))
+        pvals[i] = Float32(pvalue(test))
     end
 
-    mean_pval = mean(pvals)
-    mean_pval
+    return mean(pvals)
 end
 
 """

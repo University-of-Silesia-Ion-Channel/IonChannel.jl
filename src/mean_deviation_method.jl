@@ -63,15 +63,21 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
     temporary_dwell_time = 1
     different_state_than_mean = false
 
-    dwell_times_approx = Vector{Float32}([])
+    n = length(data)
+    dwell_times_approx = Vector{Float32}()
+    sizehint!(dwell_times_approx, div(n, 100))  # Estimate ~100 points per dwell
 
     sum_t = data[1]
     nr_means = 1
     mean_t = data[1]
+    data_mean = mean(data)
+    delta_method = δ(c_method)
 
-    state = data[1] < mean(data) ? 0 : 1
-    idealized_data = [state]
-    for t in 2:length(data)
+    state = data[1] < data_mean ? UInt8(0) : UInt8(1)
+    idealized_data = Vector{UInt8}(undef, n)
+    idealized_data[1] = state
+    
+    @inbounds for t in 2:n
         # Step 1: Running mean
         if !different_state_than_mean
             sum_t += data[t]
@@ -80,7 +86,7 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
         end        
 
         # Step 2: Deviation
-        deviation = abs(data[t] - mean_t) - δ(c_method)
+        deviation = abs(data[t] - mean_t) - delta_method
         
         # Step 3: Check for change
         if deviation > λ
@@ -89,22 +95,20 @@ function deviation_from_mean_method(data::Vector{Float32}, Δt::Float32, c_metho
             else
                 push!(dwell_times_approx, temporary_dwell_time * Δt)
                 temporary_dwell_time = 1
-                state = state == 0 ? 1 : 0
-                
+                state = state == 0 ? UInt8(1) : UInt8(0)
             end
             different_state_than_mean = true
         else
             if different_state_than_mean
                 push!(dwell_times_approx, temporary_dwell_time * Δt)
                 temporary_dwell_time = 1
-                state = state == 0 ? 1 : 0
-                
+                state = state == 0 ? UInt8(1) : UInt8(0)
             else
                 temporary_dwell_time += 1
             end
             different_state_than_mean = false
         end
-        push!(idealized_data, state)
+        idealized_data[t] = state
     end
     breakpoints = cumsum(dwell_times_approx)
     MeanDeviationMethodOutput(breakpoints, dwell_times_approx, idealized_data)
