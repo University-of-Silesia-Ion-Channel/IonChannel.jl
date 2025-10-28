@@ -28,26 +28,34 @@ Notes:
 """
 function _mdl(segment::Vector{Float32}, BP::Vector{UInt32})::Float32
     N = length(segment)
-    BPi = Vector{UInt32}(unique(vcat([1], BP, [N])))
+    BPi = unique!(sort!(vcat(UInt32[1], BP, UInt32[N])))
     p = length(BPi) - 1
     RSS = 0.0
     CL = 0.0
-    for k in eachindex(BPi)[2:end]
-        seg = BPi[k-1]:(BPi[k]-1)
-        if length(seg) == 0
+    @inbounds for k in 2:length(BPi)
+        start_idx = BPi[k-1]
+        end_idx = BPi[k] - 1
+        if end_idx < start_idx
             continue
         end
-        mu = mean(segment[seg])
-        RSS += sum((segment[seg] .- mu).^2)
-        Nseg = length(seg)
-        if Nseg > 0
-            CL += log(Nseg)
+        Nseg = end_idx - start_idx + 1
+        # Compute mean efficiently
+        sum_val = 0.0f0
+        for i in start_idx:end_idx
+            sum_val += segment[i]
         end
+        mu = sum_val / Nseg
+        # Compute RSS for this segment
+        for i in start_idx:end_idx
+            diff = segment[i] - mu
+            RSS += diff * diff
+        end
+        CL += log(Nseg)
     end
     if RSS <= 0
-        return Inf
+        return Inf32
     end
-    p*log(N) + 0.5*CL + (N/2)*log(RSS/N)
+    return Float32(p*log(N) + 0.5*CL + (N/2)*log(RSS/N))
 end
 
 """
@@ -141,10 +149,21 @@ function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
         return Vector{UInt32}([])
     end
 
-    mean1 = mean(data[1:min_seg - 1])
-    mean2 = mean(data[min_seg:end])
-    logL1 = sum((data[1:min_seg - 1] .- mean1) .^ 2)
-    logL2 = sum((data[min_seg:end] .- mean2) .^2)
+    min_seg_minus_1 = min_seg - 1
+    mean1 = mean(view(data, 1:min_seg_minus_1))
+    mean2 = mean(view(data, min_seg:n))
+    
+    logL1 = 0.0f0
+    logL2 = 0.0f0
+    @inbounds for i in 1:min_seg_minus_1
+        diff = data[i] - mean1
+        logL1 += diff * diff
+    end
+    @inbounds for i in min_seg:n
+        diff = data[i] - mean2
+        logL2 += diff * diff
+    end
+    
     bestlog = logL1 + logL2
     best_idx = 0
 
@@ -155,8 +174,11 @@ function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
         new_mean2 = ((n - i + 1)*mean2 - data[i])/(n - i)
         diff2 = new_mean2 - mean2
 
-        newL1 = logL1 + (data[i] - mean1)^2 - i*(diff1^2)
-        newL2 = logL2 - (data[i] - new_mean2)^2 + (n - i + 1)*(diff2^2)
+        data_i_minus_mean1 = data[i] - mean1
+        data_i_minus_new_mean2 = data[i] - new_mean2
+        
+        newL1 = logL1 + data_i_minus_mean1 * data_i_minus_mean1 - i*(diff1*diff1)
+        newL2 = logL2 - data_i_minus_new_mean2 * data_i_minus_new_mean2 + (n - i + 1)*(diff2*diff2)
         Nloglik = newL1 + newL2
 
         if Nloglik < bestlog
@@ -171,8 +193,7 @@ function detect_single_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
     if best_idx == 0
         return Vector{UInt32}([])
     end
-    out = Vector{UInt32}([best_idx])
-    out
+    return UInt32[best_idx]
 end
 
 """
@@ -199,7 +220,7 @@ Notes:
 function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(300)) ::Vector{UInt32}
     n = length(data)
     if n < 3 * min_seg
-        return Vector{Int32}([])
+        return Vector{UInt32}([])
     end
     cumx = cumsum(data)
     cumz = cumsum(data .^ 2)
@@ -213,8 +234,10 @@ function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
     for i in min_seg:n - 2 * min_seg - 1
         cumx_i = cumx[i]
         cumz_i = cumz[i]
-        mu1 = cumx_i/(i+1)
-        logL1 = cumz_i - 2*mu1*cumx_i + (i+1)*mu1^2
+        i_plus_1 = i + 1
+        mu1 = cumx_i / i_plus_1
+        mu1_sq = mu1 * mu1
+        logL1 = cumz_i - 2*mu1*cumx_i + i_plus_1*mu1_sq
 
         for j in i + min_seg:n - min_seg - 1
             l2 = j - i
@@ -222,11 +245,15 @@ function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
             cumx_j = cumx[j]
             cumz_j = cumz[j]
 
-            mu2 = (cumx_j - cumx_i)/l2
-            logL2 = cumz_j - cumz_i - 2*mu2*(cumx_j - cumx_i) + l2*mu2^2
+            cumx_diff = cumx_j - cumx_i
+            mu2 = cumx_diff / l2
+            mu2_sq = mu2 * mu2
+            logL2 = cumz_j - cumz_i - 2*mu2*cumx_diff + l2*mu2_sq
 
-            mu3 = (cumx_end - cumx_j)/l3
-            logL3 = cumz_end - cumz_j - 2*mu3*(cumx_end - cumx_j) + l3*mu3^2
+            cumx_diff3 = cumx_end - cumx_j
+            mu3 = cumx_diff3 / l3
+            mu3_sq = mu3 * mu3
+            logL3 = cumz_end - cumz_j - 2*mu3*cumx_diff3 + l3*mu3_sq
 
             Nloglik = logL1 + logL2 + logL3
             if Nloglik < bestlog
@@ -239,10 +266,7 @@ function detect_double_breakpoint(data::Vector{Float32}, min_seg::UInt16=UInt16(
     if best_i == 0 || best_j == 0
         return Vector{UInt32}([])
     end
-    out = Vector{UInt32}(undef, 2)
-    out[1] = best_i
-    out[2] = best_j
-    out
+    return UInt32[best_i, best_j]
 end
 
 """
@@ -276,39 +300,43 @@ Notes:
 - Ensures each segment has at least one index; if an interval collapses, it uses the breakpoint index.
 """
 function stepstat_mdl(data::Vector{Float32}, BP::Vector{UInt32}, threshold::Float32) :: Tuple{Vector{UInt32}, Vector{Float32}}
-    # push!(BP, UInt32(length(data)))
-    # stepvalue = zeros(Float32, length(BP))
-    # skip::UInt32 = 1
-    # i0::UInt32 = BP[1]
-    # for k in eachindex(BP)
-    #     start::UInt32 = i0 + skip
-    #     stop::UInt32 = BP[k] - skip
-    #     if stop < start
-    #         # @info "Stop: $stop < Start: $start, adjusting to single-point segment"
-    #         start = BP[k]
-    #         stop = BP[k]
-    #     end
-    #     indices = start:stop
-    #     if length(indices) == 0
-    #         indices = Vector{UInt32}([BP[k]])
-    #     end
-    #     stepvalue[k] = mean(data[indices])
-    #     @info "Segment $k: indices $start:$stop, mean=$(stepvalue[k])"
-    #     i0 = BP[k]
-    # end
-
-    # jumps = diff(stepvalue)
-    # filtered = BP[1:end - 1][abs.(jumps) .> threshold]
-    # filtered, stepvalue
-    stepvalue = Float32[]
-    b_idxs = vcat(1, BP, length(data))
-    prev_b_idx = b_idxs[1]
-	for b_idx in b_idxs[2:end]
-		push!(stepvalue, mean(data[prev_b_idx:b_idx]))
-		prev_b_idx = b_idx
-	end
-    jumps = diff(stepvalue)
-    filtered = BP[abs.(jumps) .> threshold]
+    n = length(data)
+    n_breaks = length(BP)
+    n_segs = n_breaks + 1
+    
+    stepvalue = Vector{Float32}(undef, n_segs)
+    
+    # Calculate segment means
+    prev_idx = 1
+    @inbounds for i in 1:n_breaks
+        b_idx = BP[i]
+        sum_val = 0.0f0
+        for j in prev_idx:b_idx
+            sum_val += data[j]
+        end
+        stepvalue[i] = sum_val / (b_idx - prev_idx + 1)
+        prev_idx = b_idx + 1
+    end
+    
+    # Last segment
+    @inbounds begin
+        sum_val = 0.0f0
+        for j in prev_idx:n
+            sum_val += data[j]
+        end
+        stepvalue[n_segs] = sum_val / (n - prev_idx + 1)
+    end
+    
+    # Filter by jumps
+    filtered = Vector{UInt32}()
+    sizehint!(filtered, n_breaks)
+    
+    @inbounds for i in 1:n_breaks
+        if abs(stepvalue[i+1] - stepvalue[i]) > threshold
+            push!(filtered, BP[i])
+        end
+    end
+    
     filtered, stepvalue
 end
 
