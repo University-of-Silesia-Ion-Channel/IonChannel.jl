@@ -174,31 +174,34 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}
     value(point) = point[2]
     time(point) = point[1]
 
-    breakpoints = []
+    breakpoints = Float32[]
+    sizehint!(breakpoints, div(length(data_with_times), 100))  # Pre-allocate hint
+    
     previous_point = data_with_times[1]
-    x1, x2 = threshold.x₁ <= threshold.x₂ ? (threshold.x₁, threshold.x₂) : (threshold.x₂, x₁)
-    if value(previous_point) < threshold.threshold_centre
-        current_state = 0 # starting at the bottom
-    else
-        current_state = 1 # starting at the top
-    end
+    x1, x2 = threshold.x₁ <= threshold.x₂ ? (threshold.x₁, threshold.x₂) : (threshold.x₂, threshold.x₁)
+    current_state = value(previous_point) < threshold.threshold_centre ? 0 : 1
 
-    temp_time_list = []
-    for point in data_with_times[2:end, :]
+    temp_time_list = Float32[]
+    sizehint!(temp_time_list, 20)
+    
+    @inbounds for i in 2:length(data_with_times)
+        point = data_with_times[i]
+        point_val = value(point)
+        
         # check if point is in the band
-        if x1 < value(point) < x2
+        if x1 < point_val < x2
             # add that time to the temporary list
             push!(temp_time_list, time(point))
         elseif !isempty(temp_time_list)
             if current_state == 0
-                if value(point) > x2
+                if point_val > x2
                     # add the breakpoint
                     push!(breakpoints, median(temp_time_list))
                     # change current state
                     current_state = 1
                 end
             else
-                if value(point) < x1
+                if point_val < x1
                     # add the breakpoint
                     push!(breakpoints, median(temp_time_list))
                     # change current state
@@ -206,16 +209,17 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}
                 end
             end
             # reinitialize the temporary list
-            temp_time_list = []
+            empty!(temp_time_list)
         else
             # naive portion of the algorithm (when ϵ small or 0)
+            prev_val = value(previous_point)
             if current_state == 0
-                if value(previous_point) < x1 && value(point) > x2
+                if prev_val < x1 && point_val > x2
                     push!(breakpoints, time(point))
                     current_state = 1
                 end
             else
-                if value(point) < x1 && value(previous_point) > x2
+                if point_val < x1 && prev_val > x2
                     push!(breakpoints, time(point))
                     current_state = 0
                 end
@@ -224,11 +228,19 @@ function calculate_approximation(data_with_times::Vector{Tuple{Float32,Float32}}
         # change the previous point to the next one
         previous_point = point
     end
+    
     if isempty(breakpoints)
         dwell_times = Float32[time(data_with_times[end]) - time(data_with_times[1])]
         return breakpoints, dwell_times
     end
-    dwell_times = append!([breakpoints[1]], diff(breakpoints))
+    
+    # More efficient dwell time calculation
+    dwell_times = Vector{Float32}(undef, length(breakpoints))
+    dwell_times[1] = breakpoints[1]
+    @inbounds for i in 2:length(breakpoints)
+        dwell_times[i] = breakpoints[i] - breakpoints[i-1]
+    end
+    
     breakpoints, dwell_times
 end
 
@@ -270,19 +282,26 @@ normality score.
   `noise_data(noise)` with `noise.ξ`.
 """
 function noise_test(noise::Noise)::Float32
-    # data_1 = rand(Normal(0, 1), 50000)
     batch_size = 50
-    num_batches = div(length(noise_data(noise)), batch_size)
-    pvals = Float32[]
-
-    for i in 1:num_batches
-        batch = noise_data(noise)[(i-1)*batch_size+1:i*batch_size]
+    noise_vals = noise_data(noise)
+    n = length(noise_vals)
+    num_batches = div(n, batch_size)
+    
+    if num_batches == 0
+        return NaN32
+    end
+    
+    pvals = Vector{Float32}(undef, num_batches)
+    
+    @inbounds for i in 1:num_batches
+        start_idx = (i - 1) * batch_size + 1
+        end_idx = i * batch_size
+        batch = view(noise_vals, start_idx:end_idx)
         test = ShapiroWilkTest(batch)
-        push!(pvals, pvalue(test))
+        pvals[i] = Float32(pvalue(test))
     end
 
-    mean_pval = mean(pvals)
-    mean_pval
+    return mean(pvals)
 end
 
 """

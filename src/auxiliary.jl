@@ -59,28 +59,42 @@ function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :
 
     what_first_files = open(what_first_path) do f; parse.(Int8, strip.(readlines(f))); end
 
-    idealized_big_data = Dict{String, Vector{Int8}}([])
+    idealized_big_data = Dict{String, Vector{Int8}}()
 
     for i in 1:N
-    x = open(data_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
-    y = open(dwell_times_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
+        x = open(data_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
+        y = open(dwell_times_paths[i]) do f; parse.(Float32, strip.(readlines(f))); end
 
-    data = Dict("x" => x, "dwell times" => y)
-    # idealize data
-    what_first = what_first_files[i]
-    idealized_value = what_first
-    idealized_values = Vector{Int8}([])
-    for dt in data["dwell times"]
-        how_many = round(Int, dt/Δt)
-        append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
-        idealized_value = idealized_value == 0 ? 1 : 0
-    end
-    if length(idealized_values) > length(data["x"])
-        idealized_values = idealized_values[1:length(data["x"])]
-    else
-        append!(idealized_values, idealized_value * ones(length(data["x"]) - length(idealized_values)))
-    end
-    idealized_big_data[split(data_paths[i], "/")[end]] = idealized_values
+        data_len = length(x)
+        
+        # Pre-allocate result vector
+        idealized_values = Vector{Int8}(undef, data_len)
+        
+        idealized_value = what_first_files[i]
+        idx = 1
+        
+        @inbounds for dt in y
+            how_many = max(1, round(Int, dt/Δt))
+            end_idx = min(idx + how_many - 1, data_len)
+            for j in idx:end_idx
+                idealized_values[j] = idealized_value
+            end
+            idx = end_idx + 1
+            idealized_value = idealized_value == 0 ? 1 : 0
+            if idx > data_len
+                break
+            end
+        end
+        
+        # Fill remaining if any
+        if idx <= data_len
+            @inbounds for j in idx:data_len
+                idealized_values[j] = idealized_value
+            end
+        end
+        
+        file_name = split(data_paths[i], "/")[end]
+        idealized_big_data[file_name] = idealized_values
     end
     idealized_big_data
 end
@@ -120,20 +134,16 @@ println(hist.edges) # Bin edges
 - The returned `Histogram` object contains bin edges and counts, suitable for further analysis or plotting.
 """
 function histogram_calculator(data::Vector{Float32}, nbins::Int16=Int16(-1)) :: Histogram
-    extrema_of_data = extrema(data)
-    min_data = extrema_of_data[1]
-    max_data = extrema_of_data[2]
+    min_data, max_data = extrema(data)
     if nbins > 0
         edges = range(min_data, stop=max_data, length=nbins+1)
-        histogram_of_data = fit(Histogram, data, edges)
-        return histogram_of_data
+        return fit(Histogram, data, edges)
     end
     IQR::Float32 = iqr(data)
 	n::UInt32 = length(data)
-	bin_width::Float32 = 2.0 * (IQR/∛n)
-	number_of_bins = round(Int, (max_data - min_data) / bin_width)
-	histogram_of_data = fit(Histogram, data, nbins= number_of_bins)
-    histogram_of_data
+	bin_width::Float32 = 2.0f0 * (IQR / cbrt(Float32(n)))
+	number_of_bins = max(1, round(Int, (max_data - min_data) / bin_width))
+	return fit(Histogram, data, nbins=number_of_bins)
 end
 
 """

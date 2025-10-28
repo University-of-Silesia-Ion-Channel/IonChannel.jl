@@ -82,20 +82,31 @@ function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32
     I_max_bottom = hist_analysis.edges[hist_analysis.left_peak_index]
     I_max_top = hist_analysis.edges[hist_analysis.right_peak_index]
     idealized_value = data[1] < Imin ? I_max_bottom : I_max_top
-    # @info "Initial idealized value: $idealized_value"
-    idealized_values = Vector{Float32}([])
-    # println("Dwell times [1]: ", dwell_times_approx[1]/Δt)
-    for dt in dwell_times_approx
-        how_many = round(UInt16, dt/Δt)
-        append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
+    
+    data_len = length(data)
+    idealized_values = Vector{Float32}(undef, data_len)
+    
+    idx = 1
+    @inbounds for dt in dwell_times_approx
+        how_many = max(1, round(Int, dt/Δt))
+        end_idx = min(idx + how_many - 1, data_len)
+        for j in idx:end_idx
+            idealized_values[j] = idealized_value
+        end
+        idx = end_idx + 1
         idealized_value = idealized_value == I_max_bottom ? I_max_top : I_max_bottom
+        if idx > data_len
+            break
+        end
     end
 
-    if length(idealized_values) > length(data)
-        idealized_values = idealized_values[1:length(data)]
-    else
-        append!(idealized_values, idealized_value * ones(length(data) - length(idealized_values)))
+    # Fill remaining if any
+    if idx <= data_len
+        @inbounds for j in idx:data_len
+            idealized_values[j] = idealized_value
+        end
     end
+    
     idealized_values
 end
 
@@ -150,17 +161,30 @@ function actual_idealize_data(data::Dict{String, Vector{Float32}}, what_first_di
 	what_first = what_first_dict[data_file_name]
 	idealized_value = what_first
 
-	idealized_values = Vector{UInt8}([])
-    for dt in data["dwell times"]
-        how_many = round(Int, dt/Δt)
-		append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
+    data_len = length(data["x"])
+	idealized_values = Vector{UInt8}(undef, data_len)
+    
+    idx = 1
+    @inbounds for dt in data["dwell times"]
+        how_many = max(1, round(Int, dt/Δt))
+        end_idx = min(idx + how_many - 1, data_len)
+        for j in idx:end_idx
+            idealized_values[j] = idealized_value
+        end
+        idx = end_idx + 1
         idealized_value = idealized_value == 0 ? 1 : 0
+        if idx > data_len
+            break
+        end
     end
-    if length(idealized_values) > length(data["x"])
-        idealized_values = idealized_values[1:length(data["x"])]
-    else
-		append!(idealized_values, idealized_value * ones(length(data["x"]) - length(idealized_values)))
+    
+    # Fill remaining if any
+    if idx <= data_len
+        @inbounds for j in idx:data_len
+            idealized_values[j] = idealized_value
+        end
     end
+    
 	idealized_values
 end	
 

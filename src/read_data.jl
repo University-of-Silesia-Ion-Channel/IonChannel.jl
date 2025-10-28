@@ -141,21 +141,42 @@ end
 
 function create_paths_dictionary(data_paths, dwell_paths)
     paths_dict = Dict{String, Dict{String, Dict{String, Vector{String}}}}()
+    
+    # Pre-extract voltage names for txt
+    txt_voltages_data = Set(split(dp, '/')[end-1] for dp in data_paths["txt"])
+    txt_voltages_dwell = Set(split(dp, '/')[end-1] for dp in dwell_paths["txt"])
+    txt_voltages = union(txt_voltages_data, txt_voltages_dwell)
+    
     paths_dict_txt = Dict(
-        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths["txt"]),
-        "dwell times paths" => Dict{String, Vector{String}}(split(dwell_path, '/')[end-1] => [] for dwell_path in dwell_paths["txt"])
+        "data paths" => Dict{String, Vector{String}}(v => String[] for v in txt_voltages),
+        "dwell times paths" => Dict{String, Vector{String}}(v => String[] for v in txt_voltages)
     )
-	for voltage in keys(paths_dict_txt["data paths"])
-		append!(paths_dict_txt["data paths"][voltage], filter(!ismissing, collect(split(data_path, '/')[end-1] == voltage ? data_path : missing for data_path in data_paths["txt"])))
-		append!(paths_dict_txt["dwell times paths"][voltage], filter(!ismissing, collect(split(dw_path, '/')[end-1] == voltage ? dw_path : missing for dw_path in dwell_paths["txt"])))
-	end
-    paths_dict["txt"] = paths_dict_txt
-    paths_dict_pickle = Dict(
-        "data paths" => Dict{String, Vector{String}}(split(data_path, '/')[end-1] => [] for data_path in data_paths["pickle"])
-    )
-    for type in keys(paths_dict_pickle["data paths"])
-        append!(paths_dict_pickle["data paths"][type], filter(!ismissing, collect(split(data_path, '/')[end-1] == type ? data_path : missing for data_path in data_paths["pickle"])))
+    
+    # More efficient filtering
+    for data_path in data_paths["txt"]
+        voltage = split(data_path, '/')[end-1]
+        push!(paths_dict_txt["data paths"][voltage], data_path)
     end
+    
+    for dwell_path in dwell_paths["txt"]
+        voltage = split(dwell_path, '/')[end-1]
+        push!(paths_dict_txt["dwell times paths"][voltage], dwell_path)
+    end
+    
+    paths_dict["txt"] = paths_dict_txt
+    
+    # Pre-extract types for pickle
+    pickle_types = Set(split(dp, '/')[end-1] for dp in data_paths["pickle"])
+    
+    paths_dict_pickle = Dict(
+        "data paths" => Dict{String, Vector{String}}(t => String[] for t in pickle_types)
+    )
+    
+    for data_path in data_paths["pickle"]
+        type = split(data_path, '/')[end-1]
+        push!(paths_dict_pickle["data paths"][type], data_path)
+    end
+    
     paths_dict["pickle"] = paths_dict_pickle
     paths_dict
 end
@@ -205,8 +226,21 @@ println(data["dwell times"])
 function get_specified_datapoints(x::Vector{Float32}, y::Vector{Float32}, Δt::Float32, data_size::UInt32=UInt32(0)) :: Dict{String, Vector{Float32}}
     N = length(x)
     data_size = data_size == 0 || data_size > N ? N : data_size
-    max_time = data_size*Δt
-    Y = y[findall(t -> t <= max_time, cumsum(y))]
+    max_time = data_size * Δt
+    
+    # More efficient filtering using a loop
+    cum_sum = 0.0f0
+    Y = Vector{Float32}()
+    sizehint!(Y, length(y))
+    @inbounds for i in eachindex(y)
+        cum_sum += y[i]
+        if cum_sum <= max_time
+            push!(Y, y[i])
+        else
+            break
+        end
+    end
+    
     data = Dict("x" => x[1:data_size], "dwell times" => Y)
     data
 end
@@ -283,7 +317,16 @@ pairs = combine_time_with_data(data, Δt)
 ```
 """
 function combine_time_with_data(data::Vector{Float32}, Δt::Float32, batch_size::UInt8=UInt8(1)) :: Vector{Tuple{Float32, Float32}}
-    data_to_process = data[1:batch_size:end]
-    data_with_times = collect(zip(0:Δt*batch_size:length(data_to_process), data_to_process))
+    step = Int(batch_size)
+    n = length(data)
+    result_len = div(n - 1, step) + 1
+    data_with_times = Vector{Tuple{Float32, Float32}}(undef, result_len)
+    
+    time_step = Δt * batch_size
+    @inbounds for i in 1:result_len
+        idx = (i - 1) * step + 1
+        data_with_times[i] = ((i - 1) * time_step, data[idx])
+    end
+    
     data_with_times
 end

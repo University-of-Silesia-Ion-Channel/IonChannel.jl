@@ -81,36 +81,48 @@ function naive_method(data::Vector{Float32}, Δt::Float32, method::NaiveMethod) 
     threshold = hist_analysis.edges[hist_analysis.pmin_index]
     data_with_times = combine_time_with_data(data, Δt)
 
-    breakpoints = []
+    n = length(data_with_times)
+    breakpoints = Float32[]
+    sizehint!(breakpoints, div(n, 100))
+    
     previous_point = data_with_times[1]
-    if value(previous_point) < threshold
-        current_state = 0 # starting at the bottom
-    else
-        current_state = 1 # starting at the top
-    end
+    current_state = value(previous_point) < threshold ? Int8(0) : Int8(1)
 
-    idealized_data = [current_state]
-    for point in data_with_times[2:end, :]
+    idealized_data = Vector{Int8}(undef, n)
+    idealized_data[1] = current_state
+    
+    @inbounds for i in 2:n
+        point = data_with_times[i]
+        point_val = value(point)
+        prev_val = value(previous_point)
+        
         if current_state == 0
-            if value(previous_point) < threshold && value(point) > threshold
+            if prev_val < threshold && point_val > threshold
                 push!(breakpoints, time(point))
                 current_state = 1
             end
         else
-            if value(point) < threshold && value(previous_point) > threshold
+            if point_val < threshold && prev_val > threshold
                 push!(breakpoints, time(point))
                 current_state = 0
             end
         end
-        # change the previous point to the next one
-        push!(idealized_data, current_state)
+        idealized_data[i] = current_state
         previous_point = point
     end
+    
     if isempty(breakpoints)
-        dwell_times = [Δt * length(data)]  # entire duration if no breakpoints
+        dwell_times = Float32[Δt * n]  # entire duration if no breakpoints
     else
-        dwell_times = append!([breakpoints[1]], diff(breakpoints))
+        # More efficient dwell time calculation
+        n_breaks = length(breakpoints)
+        dwell_times = Vector{Float32}(undef, n_breaks)
+        dwell_times[1] = breakpoints[1]
+        for i in 2:n_breaks
+            dwell_times[i] = breakpoints[i] - breakpoints[i-1]
+        end
     end
+    
     NaiveMethodOutput(breakpoints, dwell_times, idealized_data)
 end
 
