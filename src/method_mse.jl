@@ -93,8 +93,8 @@ function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32
     pos = 1
     @inbounds for dt in dwell_times_approx
         how_many = round(Int, dt/Δt)
-        how_many = max(how_many, 1)  # Ensure at least 1
-        end_pos = min(pos + how_many - 1, n_data)
+        how_many = max(1, min(how_many, n_data - pos + 1))  # Ensure valid range
+        end_pos = pos + how_many - 1
         idealized_values[pos:end_pos] .= idealized_value
         pos = end_pos + 1
         idealized_value = idealized_value == I_max_bottom ? I_max_top : I_max_bottom
@@ -169,8 +169,8 @@ function actual_idealize_data(data::Dict{String, Vector{Float32}}, what_first_di
     pos = 1
     @inbounds for dt in data["dwell times"]
         how_many = round(Int, dt/Δt)
-        how_many = max(how_many, 1)  # Ensure at least 1
-        end_pos = min(pos + how_many - 1, n_data)
+        how_many = max(1, min(how_many, n_data - pos + 1))  # Ensure valid range
+        end_pos = pos + how_many - 1
         idealized_values[pos:end_pos] .= idealized_value
         pos = end_pos + 1
         idealized_value = idealized_value == 0 ? 1 : 0
@@ -230,8 +230,8 @@ function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_ide
     if actual_idealization[2] != approx_idealization[2]
         approx_idealization = 1 .- approx_idealization
     end
-    # Use vectorized comparison and count - more efficient than sum of element-wise comparison
-    Float32(count(actual_idealization .== approx_idealization) / length(approx_idealization))
+    # Use count for more efficient comparison
+    count(actual_idealization .== approx_idealization) / length(approx_idealization)
 end
 
 """

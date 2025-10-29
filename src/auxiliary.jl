@@ -76,8 +76,8 @@ function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :
     pos = 1
     @inbounds for dt in data["dwell times"]
         how_many = round(Int, dt/Δt)
-        how_many = max(how_many, 1)  # Ensure at least 1
-        end_pos = min(pos + how_many - 1, n_data)
+        how_many = max(1, min(how_many, n_data - pos + 1))  # Ensure valid range
+        end_pos = pos + how_many - 1
         idealized_values[pos:end_pos] .= idealized_value
         pos = end_pos + 1
         idealized_value = idealized_value == 0 ? 1 : 0
