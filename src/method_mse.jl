@@ -2,6 +2,7 @@ using Distributions
 using StatsBase
 using Markdown
 using DataFrames
+using LinearAlgebra
 
 
 """
@@ -43,7 +44,9 @@ println("Mean Squared Error: ", mse)
 function calculate_mean_square_error(data::Dict{String, Vector{Float32}}, dwell_times_approx::Vector{Float32}, dt_bins::UInt16=UInt16(100)) :: Tuple{Float32, Histogram, Histogram}
     h_dwell_times = normalize(histogram_calculator(data["dwell times"], Int16(dt_bins)), mode=:pdf)
     h_dwell_times_approx = normalize(histogram_calculator(dwell_times_approx, Int16(dt_bins)), mode=:pdf)
-    mean²error::Float32 = sum((h_dwell_times.weights .- h_dwell_times_approx.weights).^2) / dt_bins
+    # Use vectorized dot product for MSE calculation (more efficient than element-wise operations)
+    diff = h_dwell_times.weights .- h_dwell_times_approx.weights
+    mean²error::Float32 = dot(diff, diff) / dt_bins
     mean²error, h_dwell_times, h_dwell_times_approx
 end
 
@@ -82,20 +85,29 @@ function idealize_data(data::Vector{Float32}, dwell_times_approx::Vector{Float32
     I_max_bottom = hist_analysis.edges[hist_analysis.left_peak_index]
     I_max_top = hist_analysis.edges[hist_analysis.right_peak_index]
     idealized_value = data[1] < Imin ? I_max_bottom : I_max_top
-    # @info "Initial idealized value: $idealized_value"
-    idealized_values = Vector{Float32}([])
-    # println("Dwell times [1]: ", dwell_times_approx[1]/Δt)
-    for dt in dwell_times_approx
-        how_many = round(UInt16, dt/Δt)
-        append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
+    
+    n_data = length(data)
+    idealized_values = Vector{Float32}(undef, n_data)
+    
+    # Build idealized trace using vectorized fill operations
+    pos = 1
+    @inbounds for dt in dwell_times_approx
+        how_many = round(Int, dt/Δt)
+        how_many = max(how_many, 1)  # Ensure at least 1
+        end_pos = min(pos + how_many - 1, n_data)
+        idealized_values[pos:end_pos] .= idealized_value
+        pos = end_pos + 1
         idealized_value = idealized_value == I_max_bottom ? I_max_top : I_max_bottom
+        if pos > n_data
+            break
+        end
     end
-
-    if length(idealized_values) > length(data)
-        idealized_values = idealized_values[1:length(data)]
-    else
-        append!(idealized_values, idealized_value * ones(length(data) - length(idealized_values)))
+    
+    # Fill remainder if needed
+    if pos <= n_data
+        idealized_values[pos:end] .= idealized_value
     end
+    
     idealized_values
 end
 
@@ -149,18 +161,29 @@ between states `0` and `1` with durations matching the provided dwell times.
 function actual_idealize_data(data::Dict{String, Vector{Float32}}, what_first_dict::Dict{String, UInt8}, data_file_name::AbstractString, Δt::Float32) :: Vector{UInt8}
 	what_first = what_first_dict[data_file_name]
 	idealized_value = what_first
-
-	idealized_values = Vector{UInt8}([])
-    for dt in data["dwell times"]
+    
+    n_data = length(data["x"])
+    idealized_values = Vector{UInt8}(undef, n_data)
+    
+    # Build idealized trace using vectorized fill operations
+    pos = 1
+    @inbounds for dt in data["dwell times"]
         how_many = round(Int, dt/Δt)
-		append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
+        how_many = max(how_many, 1)  # Ensure at least 1
+        end_pos = min(pos + how_many - 1, n_data)
+        idealized_values[pos:end_pos] .= idealized_value
+        pos = end_pos + 1
         idealized_value = idealized_value == 0 ? 1 : 0
+        if pos > n_data
+            break
+        end
     end
-    if length(idealized_values) > length(data["x"])
-        idealized_values = idealized_values[1:length(data["x"])]
-    else
-		append!(idealized_values, idealized_value * ones(length(data["x"]) - length(idealized_values)))
+    
+    # Fill remainder if needed
+    if pos <= n_data
+        idealized_values[pos:end] .= idealized_value
     end
+    
 	idealized_values
 end	
 
@@ -207,7 +230,8 @@ function accuracy_of_idealization(actual_idealization::Vector{UInt8}, approx_ide
     if actual_idealization[2] != approx_idealization[2]
         approx_idealization = 1 .- approx_idealization
     end
-	sum(actual_idealization .== approx_idealization) / length(approx_idealization)
+    # Use vectorized comparison and count - more efficient than sum of element-wise comparison
+    Float32(count(actual_idealization .== approx_idealization) / length(approx_idealization))
 end
 
 """
