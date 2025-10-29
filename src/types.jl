@@ -235,6 +235,7 @@ Computes and returns a [`Noise`](@ref) object representing the noise between raw
 See more in the [`Noise`](@ref) struct documentation.
 """
 function noise(data::Vector{Float32}, idealized_values::Vector{Float32}) :: Noise
+    # Vectorized calculation of residuals
     ξ = data .- idealized_values
     μ = mean(ξ)
     σ = std(ξ)

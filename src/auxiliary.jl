@@ -69,17 +69,28 @@ function create_idealizations(data_folder::String, Δt::Float32=Float32(1e-4)) :
     # idealize data
     what_first = what_first_files[i]
     idealized_value = what_first
-    idealized_values = Vector{Int8}([])
-    for dt in data["dwell times"]
+    n_data = length(x)
+    idealized_values = Vector{Int8}(undef, n_data)
+    
+    # Build idealized trace using vectorized fill operations
+    pos = 1
+    @inbounds for dt in data["dwell times"]
         how_many = round(Int, dt/Δt)
-        append!(idealized_values, idealized_value * ones(how_many != 0 ? how_many : 1))
+        how_many = max(1, min(how_many, n_data - pos + 1))  # Ensure valid range
+        end_pos = pos + how_many - 1
+        idealized_values[pos:end_pos] .= idealized_value
+        pos = end_pos + 1
         idealized_value = idealized_value == 0 ? 1 : 0
+        if pos > n_data
+            break
+        end
     end
-    if length(idealized_values) > length(data["x"])
-        idealized_values = idealized_values[1:length(data["x"])]
-    else
-        append!(idealized_values, idealized_value * ones(length(data["x"]) - length(idealized_values)))
+    
+    # Fill remainder if needed
+    if pos <= n_data
+        idealized_values[pos:end] .= idealized_value
     end
+    
     idealized_big_data[split(data_paths[i], "/")[end]] = idealized_values
     end
     idealized_big_data
