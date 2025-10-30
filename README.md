@@ -12,12 +12,13 @@ Quick start
 
 1. Activate project and instantiate:
 
+```sh
    julia --project=@. -e 'using Pkg; Pkg.instantiate()'
-
+```
 2. Run tests:
-
+```sh
    julia --project=@. -e 'using Pkg; Pkg.test()'
-
+```
 Contributing
 
 Please open issues or PRs. See `CI.md` for how CI is configured.
